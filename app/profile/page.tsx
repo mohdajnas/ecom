@@ -9,8 +9,11 @@ import { signOut } from "firebase/auth";
 import { formatPrice, formatDate } from "@/lib/utils";
 import {
     LogOut, Package, User as UserIcon, Calendar, CreditCard,
-    MapPin, Heart, Edit2, Save, X, Plus, Trash2, CheckCircle2
+    MapPin, Heart, Edit2, Save, X, Plus, Trash2, CheckCircle2, Camera, Loader2,
+    Crop as CropIcon, Check
 } from "lucide-react";
+import Cropper from "react-easy-crop";
+import { getCroppedImgBase64 } from "@/lib/utils/cropImage";
 import { toast } from "react-hot-toast";
 import { UserProfile, Address } from "@/types";
 
@@ -25,6 +28,14 @@ export default function ProfilePage() {
     const [isEditingProfile, setIsEditingProfile] = useState(false);
     const [editName, setEditName] = useState("");
     const [editPhone, setEditPhone] = useState("");
+    const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+
+    // Cropping states
+    const [showCropper, setShowCropper] = useState(false);
+    const [imageToCrop, setImageToCrop] = useState<string | null>(null);
+    const [crop, setCrop] = useState({ x: 0, y: 0 });
+    const [zoom, setZoom] = useState(1);
+    const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -62,6 +73,7 @@ export default function ProfilePage() {
                 email: user.email,
                 role: user.role || 'USER',
                 isActive: true, // Default to true if creating
+                photoURL: user.photoURL || null,
                 updatedAt: new Date()
             };
 
@@ -72,6 +84,81 @@ export default function ProfilePage() {
             toast.success("Profile updated!");
         } catch (error: any) {
             toast.error("Update failed: " + error.message);
+        }
+    };
+
+    const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !user) return;
+
+        // Basic validation
+        if (!file.type.startsWith('image/')) {
+            toast.error("Please upload an image file");
+            return;
+        }
+
+        // Show cropper first
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => {
+            setImageToCrop(reader.result as string);
+            setShowCropper(true);
+        };
+    };
+
+    const onCropComplete = (croppedArea: any, croppedAreaPixels: any) => {
+        setCroppedAreaPixels(croppedAreaPixels);
+    };
+
+    const confirmCropAndUpload = async () => {
+        const currentUser = auth.currentUser;
+        if (!imageToCrop || !croppedAreaPixels || !currentUser) {
+            toast.error("Process aborted: Missing required data.");
+            return;
+        }
+
+        const tid = toast.loading("Processing photo...");
+        try {
+            setIsUploadingPhoto(true);
+            setShowCropper(false);
+
+            // Step 1: Crop to Base64 (Bypasses Storage)
+            toast.loading("Optimizing for profile...", { id: tid });
+            const base64Photo = await Promise.race([
+                getCroppedImgBase64(imageToCrop, croppedAreaPixels),
+                new Promise<null>((_, reject) => setTimeout(() => reject(new Error("Processing timed out")), 20000))
+            ]);
+
+            if (!base64Photo) throw new Error("Image optimization failed");
+
+            // Step 2: Save metadata to Firestore
+            toast.loading("Saving to your profile...", { id: tid });
+            const userRef = doc(db, "users", currentUser.uid);
+            await setDoc(userRef, {
+                photoURL: base64Photo,
+                updatedAt: new Date()
+            }, { merge: true });
+
+            // Step 3: Update Global State
+            const updatedData = user ? { ...user, photoURL: base64Photo } : {
+                uid: currentUser.uid,
+                email: currentUser.email || "",
+                name: currentUser.displayName || "User",
+                photoURL: base64Photo,
+                role: 'USER',
+                isActive: true,
+                createdAt: new Date()
+            } as any;
+
+            setUser(updatedData);
+            toast.success("Profile photo updated!", { id: tid });
+            setImageToCrop(null);
+        } catch (error: any) {
+            console.error("BASE64-FAIL:", error);
+            toast.error("Failed: " + (error.message || "Unknown error"), { id: tid });
+        } finally {
+            setIsUploadingPhoto(false);
+            setShowCropper(false);
         }
     };
 
@@ -92,10 +179,90 @@ export default function ProfilePage() {
 
     return (
         <div className="max-w-6xl mx-auto space-y-8">
+            {/* Cropping Modal */}
+            {showCropper && imageToCrop && (
+                <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center p-4">
+                    <div className="relative w-full max-w-xl aspect-square bg-card rounded-3xl overflow-hidden shadow-2xl">
+                        <Cropper
+                            image={imageToCrop}
+                            crop={crop}
+                            zoom={zoom}
+                            aspect={1}
+                            onCropChange={setCrop}
+                            onCropComplete={onCropComplete}
+                            onZoomChange={setZoom}
+                            cropShape="round"
+                            showGrid={false}
+                        />
+                    </div>
+
+                    <div className="w-full max-w-xl py-8 px-4 space-y-8">
+                        <div className="space-y-4">
+                            <label className="text-xs font-bold text-white uppercase tracking-widest text-center block">Zoom Level</label>
+                            <input
+                                type="range"
+                                value={zoom}
+                                min={1}
+                                max={3}
+                                step={0.1}
+                                aria-labelledby="Zoom"
+                                onChange={(e) => setZoom(Number(e.target.value))}
+                                className="w-full h-1.5 bg-white/20 rounded-full appearance-none cursor-pointer accent-primary"
+                            />
+                        </div>
+
+                        <div className="flex gap-4">
+                            <button
+                                onClick={() => {
+                                    setShowCropper(false);
+                                    setImageToCrop(null);
+                                }}
+                                className="flex-1 px-6 py-4 rounded-2xl border border-white/20 text-white font-bold hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+                            >
+                                <X className="h-5 w-5" /> Cancel
+                            </button>
+                            <button
+                                onClick={confirmCropAndUpload}
+                                className="flex-[2] px-6 py-4 rounded-2xl bg-primary text-white font-black hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-xl shadow-primary/20"
+                            >
+                                <Check className="h-5 w-5" /> Apply & Save
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 p-8 border rounded-3xl bg-muted/20">
-                <div className="flex items-center gap-4">
-                    <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                        <UserIcon className="h-10 w-10" />
+                <div className="flex items-center gap-6">
+                    <div className="relative group">
+                        <div className="h-24 w-24 rounded-full overflow-hidden bg-primary/10 border-4 border-white shadow-xl flex items-center justify-center text-primary transition-all group-hover:brightness-90">
+                            {user?.photoURL ? (
+                                <img src={user.photoURL} alt={user.name} className="h-full w-full object-cover" />
+                            ) : (
+                                <UserIcon className="h-10 w-10" />
+                            )}
+                            {isUploadingPhoto && (
+                                <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center rounded-full text-center p-2">
+                                    <Loader2 className="h-8 w-8 text-white animate-spin mb-1" />
+                                    <button
+                                        onClick={() => setIsUploadingPhoto(false)}
+                                        className="text-[8px] text-white/70 hover:text-white underline uppercase tracking-tighter"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        <label className="absolute bottom-0 right-0 p-2 bg-primary text-white rounded-full cursor-pointer shadow-lg hover:scale-110 active:scale-95 transition-all">
+                            <Camera className="h-4 w-4" />
+                            <input
+                                type="file"
+                                className="hidden"
+                                accept="image/*"
+                                onChange={handlePhotoUpload}
+                                disabled={isUploadingPhoto}
+                            />
+                        </label>
                     </div>
                     <div>
                         <h1 className="text-3xl font-bold">{user?.name}</h1>

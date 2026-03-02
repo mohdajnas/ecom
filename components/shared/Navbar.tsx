@@ -50,8 +50,12 @@ export const Navbar = () => {
                             </span>
                         )}
                     </Link>
-                    <Link href={user ? "/profile" : "/login"} className="p-2 hover:bg-muted rounded-full">
-                        <User className="h-5 w-5" />
+                    <Link href={user ? "/profile" : "/login"} className="p-2 hover:bg-muted rounded-full overflow-hidden">
+                        {user?.photoURL ? (
+                            <img src={user.photoURL} alt={user.name} className="h-6 w-6 rounded-full object-cover" />
+                        ) : (
+                            <User className="h-5 w-5" />
+                        )}
                     </Link>
 
                     {user && (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
