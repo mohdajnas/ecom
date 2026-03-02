@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Auth helper
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Role helper - SAFELY check role without crashing if doc missing
+    function hasRole(role) {
+      return isSignedIn() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+    }
+
+    // User Profile: Critical for registration
+    match /users/{userId} {
+      // Anyone logged in can read (needed for role checks across the app)
+      allow read: if isSignedIn();
+      // Only the user themselves can create their profile during registration
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      // Only owner or super admin can update
+      allow update: if (isSignedIn() && request.auth.uid == userId) || hasRole('SUPER_ADMIN');
+    }
+
+    // Products & Categories: Public read
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if hasRole('ADMIN') || hasRole('SUPER_ADMIN');
+    }
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if hasRole('ADMIN') || hasRole('SUPER_ADMIN');
+    }
+
+    // Orders: Owners for their own, Admins for all
+    match /orders/{orderId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || hasRole('ADMIN') || hasRole('SUPER_ADMIN'));
+      allow create: if isSignedIn();
+      allow update: if hasRole('ADMIN') || hasRole('SUPER_ADMIN');
+    }
+
+    // Carts & Wishlist: Owner only
+    match /carts/{userId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+    match /wishlist/{userId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Config: Super Admin only
+    match /config/{configId} {
+      allow read, write: if hasRole('SUPER_ADMIN');
+    }
+  }
+}
