@@ -37,6 +37,15 @@ export default function ProfilePage() {
     const [zoom, setZoom] = useState(1);
     const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
 
+    // Card management states
+    const [isAddingCard, setIsAddingCard] = useState(false);
+    const [newCard, setNewCard] = useState({
+        brand: "Visa",
+        last4: "",
+        expiryMonth: "",
+        expiryYear: ""
+    });
+
     useEffect(() => {
         if (!authLoading && !user) {
             router.push("/login");
@@ -162,6 +171,43 @@ export default function ProfilePage() {
         }
     };
 
+    const handleAddCard = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user || !newCard.last4 || !newCard.expiryMonth || !newCard.expiryYear) {
+            toast.error("Please fill all card details");
+            return;
+        }
+
+        try {
+            const cardId = Math.random().toString(36).substr(2, 9);
+            const card = { id: cardId, ...newCard };
+            const updatedCards = [...(user.savedCards || []), card];
+
+            const userRef = doc(db, "users", user.uid);
+            await setDoc(userRef, { savedCards: updatedCards }, { merge: true });
+
+            setUser({ ...user, savedCards: updatedCards });
+            setIsAddingCard(false);
+            setNewCard({ brand: "Visa", last4: "", expiryMonth: "", expiryYear: "" });
+            toast.success("Card added successfully!");
+        } catch (error: any) {
+            toast.error("Failed to add card: " + error.message);
+        }
+    };
+
+    const handleDeleteCard = async (cardId: string) => {
+        if (!user) return;
+        try {
+            const updatedCards = user.savedCards?.filter(c => c.id !== cardId) || [];
+            const userRef = doc(db, "users", user.uid);
+            await setDoc(userRef, { savedCards: updatedCards }, { merge: true });
+            setUser({ ...user, savedCards: updatedCards });
+            toast.success("Card removed");
+        } catch (error: any) {
+            toast.error("Failed to remove card");
+        }
+    };
+
     const handleLogout = async () => {
         await signOut(auth);
         toast.success("Logged out");
@@ -228,6 +274,79 @@ export default function ProfilePage() {
                                 <Check className="h-5 w-5" /> Apply & Save
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add Card Modal */}
+            {isAddingCard && (
+                <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-card w-full max-w-md rounded-3xl p-8 shadow-2xl space-y-6">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-2xl font-bold">Add New Card</h2>
+                            <button onClick={() => setIsAddingCard(false)} className="p-2 hover:bg-muted rounded-full transition-colors">
+                                <X className="h-6 w-6" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleAddCard} className="space-y-4">
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Card Brand</label>
+                                <select
+                                    value={newCard.brand}
+                                    onChange={(e) => setNewCard({ ...newCard, brand: e.target.value })}
+                                    className="w-full px-4 py-3 rounded-xl border bg-muted/50 focus:ring-2 focus:ring-primary outline-none"
+                                >
+                                    <option value="Visa">Visa</option>
+                                    <option value="Mastercard">Mastercard</option>
+                                    <option value="Rupay">Rupay</option>
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Last 4 Digits</label>
+                                <input
+                                    type="text"
+                                    maxLength={4}
+                                    placeholder="XXXX"
+                                    value={newCard.last4}
+                                    onChange={(e) => setNewCard({ ...newCard, last4: e.target.value.replace(/\D/g, '') })}
+                                    className="w-full px-4 py-3 rounded-xl border bg-muted/50 focus:ring-2 focus:ring-primary outline-none"
+                                    required
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Expiry Month (MM)</label>
+                                    <input
+                                        type="text"
+                                        maxLength={2}
+                                        placeholder="01"
+                                        value={newCard.expiryMonth}
+                                        onChange={(e) => setNewCard({ ...newCard, expiryMonth: e.target.value.replace(/\D/g, '') })}
+                                        className="w-full px-4 py-3 rounded-xl border bg-muted/50 focus:ring-2 focus:ring-primary outline-none"
+                                        required
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Expiry Year (YY)</label>
+                                    <input
+                                        type="text"
+                                        maxLength={2}
+                                        placeholder="28"
+                                        value={newCard.expiryYear}
+                                        onChange={(e) => setNewCard({ ...newCard, expiryYear: e.target.value.replace(/\D/g, '') })}
+                                        className="w-full px-4 py-3 rounded-xl border bg-muted/50 focus:ring-2 focus:ring-primary outline-none"
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            <button
+                                type="submit"
+                                className="w-full py-4 rounded-xl bg-primary text-white font-black hover:opacity-90 transition-all shadow-lg shadow-primary/20"
+                            >
+                                Save Card
+                            </button>
+                        </form>
                     </div>
                 </div>
             )}
@@ -377,12 +496,18 @@ export default function ProfilePage() {
                                                     <p className="text-xs text-muted-foreground">Expires {card.expiryMonth}/{card.expiryYear}</p>
                                                 </div>
                                             </div>
-                                            <button className="text-destructive p-2 hover:bg-destructive/10 rounded-lg">
+                                            <button
+                                                onClick={() => handleDeleteCard(card.id)}
+                                                className="text-destructive p-2 hover:bg-destructive/10 rounded-lg"
+                                            >
                                                 <Trash2 className="h-4 w-4" />
                                             </button>
                                         </div>
                                     ))}
-                                    <button className="border-2 border-dashed rounded-2xl p-4 flex items-center justify-center gap-2 text-muted-foreground hover:bg-muted transition-colors">
+                                    <button
+                                        onClick={() => setIsAddingCard(true)}
+                                        className="border-2 border-dashed rounded-2xl p-4 flex items-center justify-center gap-2 text-muted-foreground hover:bg-muted transition-colors"
+                                    >
                                         <Plus className="h-4 w-4" /> Add New Card
                                     </button>
                                 </div>

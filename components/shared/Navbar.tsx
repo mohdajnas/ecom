@@ -6,11 +6,23 @@ import { useAuthStore } from "@/lib/store/useAuthStore";
 import { useCartStore } from "@/lib/store/useCartStore";
 import { useWishlistStore } from "@/lib/store/useWishlistStore";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export const Navbar = () => {
     const { user } = useAuthStore();
     const { getTotalItems } = useCartStore();
     const { items: wishlistItems } = useWishlistStore();
+    const [searchQuery, setSearchQuery] = useState("");
+    const router = useRouter();
+
+    const handleSearch = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (searchQuery.trim()) {
+            router.push(`/shop?q=${encodeURIComponent(searchQuery.trim())}`);
+            setSearchQuery("");
+        }
+    };
 
     return (
         <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -23,14 +35,16 @@ export const Navbar = () => {
                 </div>
 
                 <div className="hidden md:flex flex-1 items-center justify-center px-8">
-                    <div className="relative w-full max-w-sm">
+                    <form onSubmit={handleSearch} className="relative w-full max-w-sm">
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         <input
                             type="search"
                             placeholder="Search products..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
                             className="w-full rounded-full border bg-muted pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                         />
-                    </div>
+                    </form>
                 </div>
 
                 <div className="flex items-center gap-4">

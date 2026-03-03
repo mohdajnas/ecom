@@ -3,33 +3,83 @@
 import { useEffect, useState } from "react";
 import { collection, query, getDocs, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
-import { formatPrice } from "@/lib/utils";
+import { cn, formatPrice } from "@/lib/utils";
 import { useCartStore } from "@/lib/store/useCartStore";
 import { useWishlistStore } from "@/lib/store/useWishlistStore";
 import Link from "next/link";
-import { Search, Filter, ShoppingCart, Star, Heart } from "lucide-react";
+import { Search, Filter, ShoppingCart, Star, Heart, X } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { useSearchParams, useRouter } from "next/navigation";
 
 export default function ShopPage() {
     const [products, setProducts] = useState<any[]>([]);
+    const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
+    const [categories, setCategories] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState("");
+    const searchParams = useSearchParams();
+    const router = useRouter();
     const addItem = useCartStore(state => state.addItem);
     const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlistStore();
 
+    const q = searchParams.get("q") || "";
+    const category = searchParams.get("category") || "All";
+
     useEffect(() => {
-        const fetchProducts = async () => {
+        const fetchData = async () => {
             try {
-                const q = query(collection(db, "products"), orderBy("createdAt", "desc"));
-                const snap = await getDocs(q);
-                setProducts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                // Fetch Products
+                const productQuery = query(collection(db, "products"), orderBy("createdAt", "desc"));
+                const productSnap = await getDocs(productQuery);
+                const allProducts = productSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setProducts(allProducts);
+
+                // Fetch Categories
+                const categorySnap = await getDocs(collection(db, "categories"));
+                const allCats = categorySnap.docs.map(doc => doc.data().name);
+                setCategories(["All", ...allCats]);
             } catch (error) {
                 console.error(error);
+                toast.error("Failed to load products");
             } finally {
                 setLoading(false);
             }
         };
-        fetchProducts();
+        fetchData();
     }, []);
+
+    useEffect(() => {
+        let filtered = products;
+
+        if (q) {
+            filtered = filtered.filter(p =>
+                p.name.toLowerCase().includes(q.toLowerCase()) ||
+                p.description.toLowerCase().includes(q.toLowerCase())
+            );
+        }
+
+        if (category !== "All") {
+            filtered = filtered.filter(p => p.category === category);
+        }
+
+        setFilteredProducts(filtered);
+        setSearchQuery(q);
+    }, [products, q, category]);
+
+    const handleSearch = (e: React.FormEvent) => {
+        e.preventDefault();
+        const params = new URLSearchParams(searchParams.toString());
+        if (searchQuery) params.set("q", searchQuery);
+        else params.delete("q");
+        router.push(`/shop?${params.toString()}`);
+    };
+
+    const handleCategoryChange = (cat: string) => {
+        const params = new URLSearchParams(searchParams.toString());
+        if (cat === "All") params.delete("category");
+        else params.set("category", cat);
+        router.push(`/shop?${params.toString()}`);
+    };
 
     const toggleWishlist = (product: any, e: React.MouseEvent) => {
         e.preventDefault();
@@ -49,27 +99,60 @@ export default function ShopPage() {
         <div className="space-y-12">
             <div className="flex flex-col md:flex-row items-center justify-between gap-6">
                 <h1 className="text-4xl font-bold tracking-tight">Browse Products</h1>
-                <div className="flex items-center gap-4 w-full md:w-auto">
-                    <div className="relative flex-grow md:w-64">
+                <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
+                    <form onSubmit={handleSearch} className="relative flex-grow md:w-80">
                         <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                         <input
-                            placeholder="Search..."
-                            className="w-full pl-10 pr-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-primary"
+                            placeholder="Search products..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-10 pr-10 py-2.5 border-2 rounded-2xl outline-none focus:ring-2 focus:ring-primary bg-muted/20"
                         />
+                        {searchQuery && (
+                            <button
+                                type="button"
+                                onClick={() => { setSearchQuery(""); router.push("/shop"); }}
+                                className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        )}
+                    </form>
+
+                    <div className="flex gap-2 bg-muted/30 p-1.5 rounded-2xl border">
+                        {categories.slice(0, 5).map(cat => (
+                            <button
+                                key={cat}
+                                onClick={() => handleCategoryChange(cat)}
+                                className={cn(
+                                    "px-4 py-1.5 rounded-xl text-sm font-bold transition-all",
+                                    (category === cat)
+                                        ? "bg-primary text-white shadow-lg shadow-primary/20 scale-105"
+                                        : "hover:bg-muted text-muted-foreground"
+                                )}
+                            >
+                                {cat}
+                            </button>
+                        ))}
                     </div>
-                    <button className="flex items-center gap-2 border px-4 py-2 rounded-xl hover:bg-muted">
-                        <Filter className="h-4 w-4" /> Filter
-                    </button>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-                {products.length === 0 ? (
-                    <div className="col-span-full py-20 text-center border-2 border-dashed rounded-3xl text-muted-foreground">
-                        No products found. Stay tuned for new arrivals!
+                {filteredProducts.length === 0 ? (
+                    <div className="col-span-full py-20 text-center border-4 border-dashed rounded-[3rem] text-muted-foreground animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <Package className="h-16 w-16 mx-auto mb-4 opacity-20" />
+                        <h3 className="text-xl font-bold text-foreground">No matches found</h3>
+                        <p className="mt-2">Try adjusting your search or category filters</p>
+                        <button
+                            onClick={() => { router.push("/shop"); setSearchQuery(""); }}
+                            className="mt-6 px-6 py-2 bg-primary text-white font-bold rounded-xl"
+                        >
+                            Clear All Filters
+                        </button>
                     </div>
                 ) : (
-                    products.map((product) => (
+                    filteredProducts.map((product) => (
                         <div key={product.id} className="group relative flex flex-col space-y-4 rounded-3xl border p-4 hover:shadow-2xl transition-all duration-300 bg-card">
                             <div className="relative aspect-square overflow-hidden rounded-2xl bg-muted">
                                 <Link href={`/products/${product.id}`} className="block h-full w-full">

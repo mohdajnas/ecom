@@ -84,3 +84,56 @@ export async function getCroppedImgBase64(
 
     return canvas.toDataURL("image/jpeg", 0.6); // 60% quality for optimal Firestore storage
 }
+
+/**
+ * Resizes and compresses a raw File to a Base64 string.
+ * Helps bypass Firebase Storage limitations on the Free plan.
+ */
+export async function compressImageToBase64(
+    file: File,
+    maxWidth = 600,
+    maxHeight = 600,
+    quality = 0.6
+): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target?.result as string;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                // Scale proportionally
+                if (width > height) {
+                    if (width > maxWidth) {
+                        height *= maxWidth / width;
+                        width = maxWidth;
+                    }
+                } else {
+                    if (height > maxHeight) {
+                        width *= maxHeight / height;
+                        height = maxHeight;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    reject(new Error("Canvas context failed"));
+                    return;
+                }
+
+                ctx.drawImage(img, 0, 0, width, height);
+                const dataUrl = canvas.toDataURL('image/jpeg', quality);
+                resolve(dataUrl);
+            };
+            img.onerror = (err) => reject(err);
+        };
+        reader.onerror = (err) => reject(err);
+    });
+}

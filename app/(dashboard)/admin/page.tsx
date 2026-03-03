@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import { useAuthStore } from "@/lib/store/useAuthStore";
 import { useRouter } from "next/navigation";
 import { collection, query, getDocs, addDoc, serverTimestamp, deleteDoc, doc, updateDoc } from "firebase/firestore";
-import { db, storage } from "@/lib/firebase/config";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db } from "@/lib/firebase/config";
 import { toast } from "react-hot-toast";
 import { Plus, Package, ListOrdered, Trash2, Edit, LayoutDashboard, Image as ImageIcon, Upload, X } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
+import { compressImageToBase64 } from "@/lib/utils/cropImage";
 
 export default function AdminDashboard() {
     const { user, loading: authLoading } = useAuthStore();
@@ -71,10 +71,10 @@ export default function AdminDashboard() {
             let imageUrls: string[] = [];
 
             if (imageFile) {
-                const storageRef = ref(storage, `products/${Date.now()}_${imageFile.name}`);
-                const snapshot = await uploadBytes(storageRef, imageFile);
-                const url = await getDownloadURL(snapshot.ref);
-                imageUrls.push(url);
+                toast.loading("Processing image...", { id: "upload" });
+                const base64ImageUrl = await compressImageToBase64(imageFile, 800, 800, 0.7);
+                imageUrls.push(base64ImageUrl);
+                toast.dismiss("upload");
             }
 
             await addDoc(collection(db, "products"), {
@@ -111,10 +111,10 @@ export default function AdminDashboard() {
             let imageUrls = editingProduct.imageUrls || [];
 
             if (imageFile) {
-                const storageRef = ref(storage, `products/${Date.now()}_${imageFile.name}`);
-                const snapshot = await uploadBytes(storageRef, imageFile);
-                const url = await getDownloadURL(snapshot.ref);
-                imageUrls = [url]; // For now, we just replace/add one image
+                toast.loading("Processing image...", { id: "upload" });
+                const base64ImageUrl = await compressImageToBase64(imageFile, 800, 800, 0.7);
+                imageUrls = [base64ImageUrl];
+                toast.dismiss("upload");
             }
 
             const productRef = doc(db, "products", editingProduct.id);
