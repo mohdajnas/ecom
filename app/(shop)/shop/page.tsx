@@ -11,7 +11,9 @@ import { Search, Filter, ShoppingCart, Star, Heart, X } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useSearchParams, useRouter } from "next/navigation";
 
-export default function ShopPage() {
+import { Suspense } from "react";
+
+function ShopContent() {
     const [products, setProducts] = useState<any[]>([]);
     const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
     const [categories, setCategories] = useState<string[]>([]);
@@ -141,7 +143,7 @@ export default function ShopPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
                 {filteredProducts.length === 0 ? (
                     <div className="col-span-full py-20 text-center border-4 border-dashed rounded-[3rem] text-muted-foreground animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <Package className="h-16 w-16 mx-auto mb-4 opacity-20" />
+                        <PackageSVG className="h-16 w-16 mx-auto mb-4 opacity-20" />
                         <h3 className="text-xl font-bold text-foreground">No matches found</h3>
                         <p className="mt-2">Try adjusting your search or category filters</p>
                         <button
@@ -160,7 +162,7 @@ export default function ShopPage() {
                                         <img src={product.imageUrls[0]} alt={product.name} className="h-full w-full object-cover transition-transform group-hover:scale-110" />
                                     ) : (
                                         <div className="flex h-full w-full items-center justify-center text-muted-foreground/50">
-                                            <Package className="h-12 w-12" />
+                                            <PackageSVG className="h-12 w-12" />
                                         </div>
                                     )}
                                 </Link>
@@ -206,6 +208,14 @@ export default function ShopPage() {
     );
 }
 
-const Package = ({ className }: { className?: string }) => (
+export default function ShopPage() {
+    return (
+        <Suspense fallback={<div className="p-20 text-center text-xl font-medium">Loading shop content...</div>}>
+            <ShopContent />
+        </Suspense>
+    );
+}
+
+const PackageSVG = ({ className }: { className?: string }) => (
     <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7.5 4.27 9 5.15" /><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" /><path d="m3.3 7 8.7 5 8.7-5" /><path d="M12 22V12" /></svg>
 );
