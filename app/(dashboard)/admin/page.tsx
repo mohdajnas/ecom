@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuthStore } from "@/lib/store/useAuthStore";
 import { useRouter } from "next/navigation";
-import { collection, query, getDocs, addDoc, serverTimestamp, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import { collection, query, getDocs, addDoc, serverTimestamp, deleteDoc, doc, updateDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 import { toast } from "react-hot-toast";
 import { Plus, Package, ListOrdered, Trash2, Edit, LayoutDashboard, Image as ImageIcon, Upload, X } from "lucide-react";
@@ -38,35 +38,37 @@ export default function AdminDashboard() {
         if (!authLoading && (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN"))) {
             router.push("/");
         } else if (user) {
-            fetchProducts();
-            fetchCategories();
-            fetchOrders();
+            // Real-time Products
+            const unsubscribeProducts = onSnapshot(collection(db, "products"), (snap) => {
+                setProducts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                setLoading(false);
+            }, (error) => {
+                toast.error("Failed to fetch products");
+            });
+
+            // Real-time Categories
+            const unsubscribeCategories = onSnapshot(collection(db, "categories"), (snap) => {
+                const cats = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+                setCategories(cats);
+                if (cats.length > 0 && !newProduct.category) {
+                    setNewProduct(prev => ({ ...prev, category: cats[0].name }));
+                }
+            });
+
+            // Real-time Orders
+            const unsubscribeOrders = onSnapshot(collection(db, "orders"), (snap) => {
+                setOrders(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+            });
+
+            return () => {
+                unsubscribeProducts();
+                unsubscribeCategories();
+                unsubscribeOrders();
+            };
         }
     }, [user, authLoading, router]);
 
-    const fetchOrders = async () => {
-        try {
-            const q = query(collection(db, "orders"));
-            const snap = await getDocs(q);
-            setOrders(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        } catch (error) {
-            console.error("Error fetching orders:", error);
-        }
-    };
-
-    const fetchCategories = async () => {
-        try {
-            const q = query(collection(db, "categories"));
-            const snap = await getDocs(q);
-            const cats = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
-            setCategories(cats);
-            if (cats.length > 0 && !newProduct.category) {
-                setNewProduct(prev => ({ ...prev, category: cats[0].name }));
-            }
-        } catch (error) {
-            console.error("Error fetching categories:", error);
-        }
-    };
+    // Remove the old fetch functions since we use onSnapshot now
 
     const handleAddCategory = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -78,7 +80,6 @@ export default function AdminDashboard() {
             });
             setNewCategoryName("");
             toast.success("Category added!");
-            fetchCategories();
         } catch (error) {
             toast.error("Failed to add category");
         }
@@ -89,7 +90,6 @@ export default function AdminDashboard() {
         try {
             await deleteDoc(doc(db, "categories", id));
             toast.success("Category deleted");
-            fetchCategories();
         } catch (error) {
             toast.error("Delete failed");
         }
@@ -100,23 +100,11 @@ export default function AdminDashboard() {
             const orderRef = doc(db, "orders", orderId);
             await updateDoc(orderRef, { status: newStatus });
             toast.success("Status updated");
-            fetchOrders();
         } catch (error) {
             toast.error("Update failed");
         }
     };
 
-    const fetchProducts = async () => {
-        try {
-            const q = query(collection(db, "products"));
-            const snap = await getDocs(q);
-            setProducts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        } catch (error) {
-            toast.error("Failed to fetch products");
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const handleAddProduct = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -150,7 +138,6 @@ export default function AdminDashboard() {
                 stock: 10,
                 description: ""
             });
-            fetchProducts();
         } catch (error) {
             toast.error("Failed to add product");
         } finally {
@@ -185,7 +172,6 @@ export default function AdminDashboard() {
             setEditingProduct(null);
             setImageFile(null);
             setImagePreview(null);
-            fetchProducts();
         } catch (error) {
             toast.error("Failed to update product");
         } finally {
@@ -210,7 +196,6 @@ export default function AdminDashboard() {
         try {
             await deleteDoc(doc(db, "products", id));
             toast.success("Product deleted");
-            fetchProducts();
         } catch (error) {
             toast.error("Delete failed");
         }
