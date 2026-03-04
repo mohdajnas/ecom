@@ -19,7 +19,7 @@ export default function CartPage() {
     const { items, removeItem, updateQuantity, getTotalPrice, clearCart } = useCartStore();
     const router = useRouter();
 
-    const handleCheckout = async () => {
+    const handleCheckout = () => {
         if (!user) {
             toast.error("Please login to checkout");
             router.push("/login");
@@ -27,63 +27,7 @@ export default function CartPage() {
         }
 
         if (items.length === 0) return;
-
-        try {
-            const createOrder = httpsCallable(functions, "createRazorpayOrder");
-            const verifyPayment = httpsCallable(functions, "verifyRazorpayPayment");
-
-            const amount = getTotalPrice();
-
-            // Step 1: Create Razorpay Order
-            const { data: order }: any = await createOrder({ amount });
-
-            // Step 2: Open Razorpay Checkout
-            const options = {
-                key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-                amount: order.amount,
-                currency: order.currency,
-                name: "ZoftStore",
-                description: "Payment for your order",
-                order_id: order.id,
-                handler: async function (response: any) {
-                    try {
-                        // Step 3: Verify Payment
-                        const verifyData = {
-                            razorpayOrderId: response.razorpay_order_id,
-                            razorpayPaymentId: response.razorpay_payment_id,
-                            razorpaySignature: response.razorpay_signature,
-                            items: items.map(item => ({
-                                productId: item.productId,
-                                quantity: item.quantity,
-                            })),
-                            totalAmount: amount,
-                        };
-
-                        const { data: result }: any = await verifyPayment(verifyData);
-
-                        if (result.success) {
-                            toast.success("Payment successful! Order placed.");
-                            clearCart();
-                            router.push("/orders/" + result.orderId);
-                        }
-                    } catch (error: any) {
-                        toast.error("Payment verification failed: " + error.message);
-                    }
-                },
-                prefill: {
-                    name: user.name,
-                    email: user.email,
-                },
-                theme: {
-                    color: "#3b82f6",
-                },
-            };
-
-            const rzp = new (window as any).Razorpay(options);
-            rzp.open();
-        } catch (error: any) {
-            toast.error("Checkout failed: " + error.message);
-        }
+        router.push("/checkout");
     };
 
     if (items.length === 0) {
@@ -113,30 +57,36 @@ export default function CartPage() {
                 <div className="space-y-4">
                     {items.map((item) => (
                         <div key={item.productId} className="flex items-center gap-4 p-4 border rounded-2xl">
-                            <div className="h-24 w-24 bg-muted rounded-xl flex-shrink-0" />
+                            <div className="h-24 w-24 bg-muted rounded-xl flex-shrink-0 relative overflow-hidden">
+                                {item.product?.imageUrls?.[0] ? (
+                                    <img src={item.product.imageUrls[0]} alt={item.product.name} className="h-full w-full object-cover" />
+                                ) : (
+                                    <ShoppingBag className="h-8 w-8 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-20" />
+                                )}
+                            </div>
                             <div className="flex-grow">
                                 <h3 className="font-bold">{item.product?.name || "Product Name"}</h3>
-                                <p className="text-sm text-muted-foreground">{item.product?.categoryId || "Category"}</p>
-                                <div className="mt-2 text-lg font-bold">{formatPrice(item.product?.price || 0)}</div>
+                                <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest">{item.product?.categoryId || "Category"}</p>
+                                <div className="mt-2 text-lg font-bold text-primary">{formatPrice(item.product?.price || 0)}</div>
                             </div>
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 bg-muted/50 p-1.5 rounded-xl border">
                                 <button
                                     onClick={() => updateQuantity(item.productId, item.quantity - 1)}
-                                    className="p-1 border rounded-lg hover:bg-muted"
+                                    className="p-1 hover:bg-white hover:shadow-sm rounded-lg transition-all"
                                 >
                                     <Minus className="h-4 w-4" />
                                 </button>
                                 <span className="w-8 text-center font-bold">{item.quantity}</span>
                                 <button
                                     onClick={() => updateQuantity(item.productId, item.quantity + 1)}
-                                    className="p-1 border rounded-lg hover:bg-muted"
+                                    className="p-1 hover:bg-white hover:shadow-sm rounded-lg transition-all"
                                 >
                                     <Plus className="h-4 w-4" />
                                 </button>
                             </div>
                             <button
                                 onClick={() => removeItem(item.productId)}
-                                className="p-2 text-destructive hover:bg-destructive/10 rounded-lg"
+                                className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
                             >
                                 <Trash2 className="h-5 w-5" />
                             </button>
@@ -146,30 +96,28 @@ export default function CartPage() {
             </div>
 
             <div className="lg:col-span-1">
-                <div className="p-6 border rounded-3xl space-y-6 sticky top-24">
-                    <h2 className="text-xl font-bold">Order Summary</h2>
+                <div className="p-8 border-2 border-muted/50 rounded-[2.5rem] space-y-6 sticky top-24 bg-card shadow-sm">
+                    <h2 className="text-2xl font-black tracking-tight">Summary</h2>
                     <div className="space-y-4">
-                        <div className="flex justify-between">
-                            <span className="text-muted-foreground">Subtotal</span>
-                            <span>{formatPrice(getTotalPrice())}</span>
+                        <div className="flex justify-between text-muted-foreground">
+                            <span className="font-medium">Subtotal</span>
+                            <span className="font-bold text-foreground">{formatPrice(getTotalPrice())}</span>
                         </div>
-                        <div className="flex justify-between">
-                            <span className="text-muted-foreground">Shipping</span>
-                            <span className="text-green-600 font-medium">Free</span>
+                        <div className="flex justify-between text-muted-foreground">
+                            <span className="font-medium">Shipping</span>
+                            <span className="text-green-600 font-bold uppercase text-xs tracking-widest">Free</span>
                         </div>
-                        <div className="border-t pt-4 flex justify-between text-lg font-bold">
+                        <div className="border-t border-dashed pt-4 flex justify-between text-xl font-black">
                             <span>Total</span>
-                            <span>{formatPrice(getTotalPrice())}</span>
+                            <span className="text-primary">{formatPrice(getTotalPrice())}</span>
                         </div>
                     </div>
                     <button
                         onClick={handleCheckout}
-                        className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground py-4 rounded-2xl font-bold hover:opacity-90 transition-opacity"
+                        className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground py-5 rounded-2xl font-black text-lg shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all"
                     >
-                        <CreditCard className="h-5 w-5" /> Checkout with Razorpay
+                        Proceed to Checkout
                     </button>
-
-                    <script src="https://checkout.razorpay.com/v1/checkout.js" async />
                 </div>
             </div>
         </div>
