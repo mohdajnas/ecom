@@ -27,7 +27,7 @@ export default function CheckoutPage() {
 
     // Form States
     const [address, setAddress] = useState({
-        fullName: user?.displayName || "",
+        fullName: user?.name || "",
         phone: "",
         street: "",
         city: "",
