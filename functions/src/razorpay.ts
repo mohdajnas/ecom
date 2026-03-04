@@ -32,7 +32,10 @@ export const createRazorpayOrder = functions.https.onCall(async (data: any, cont
         throw new functions.https.HttpsError("unauthenticated", "User must be logged in");
     }
 
-    const amount = data.amount;
+    const amount = Number(data.amount);
+    if (!amount || amount <= 0) {
+        throw new functions.https.HttpsError("invalid-argument", "Invalid amount provided");
+    }
     const currency = data.currency || "INR";
 
     try {
@@ -62,6 +65,9 @@ export const verifyRazorpayPayment = functions.https.onCall(async (data: any, co
         razorpaySignature,
         items,
         totalAmount,
+        address,
+        isGstInvoice,
+        gstDetails,
     } = data;
 
     try {
@@ -84,16 +90,31 @@ export const verifyRazorpayPayment = functions.https.onCall(async (data: any, co
             throw new functions.https.HttpsError("invalid-argument", "Payment verification failed");
         }
 
+        // Sanitize items for storage
+        const sanitizedItems = items.map((item: any) => ({
+            productId: item.productId,
+            quantity: Number(item.quantity) || 1,
+            productName: item.product?.name || "Product",
+            price: Number(item.product?.price) || 0,
+        }));
+
         // Save order to Firestore
-        const orderData = {
+        const orderData: any = {
             userId: context.auth.uid,
-            items,
-            totalAmount,
+            items: sanitizedItems,
+            address,
+            isGstInvoice: isGstInvoice || false,
+            totalAmount: Number(totalAmount) || 0,
             status: "PAID",
             razorpayOrderId,
             razorpayPaymentId,
+            paymentMethod: "ONLINE",
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
         };
+
+        if (isGstInvoice && gstDetails) {
+            orderData.gstDetails = gstDetails;
+        }
 
         const orderRef = await db.collection("orders").add(orderData);
 
@@ -101,10 +122,13 @@ export const verifyRazorpayPayment = functions.https.onCall(async (data: any, co
         const batch = db.batch();
         if (Array.isArray(items)) {
             for (const item of items) {
-                const productRef = db.collection("products").doc(item.productId);
-                batch.update(productRef, {
-                    stock: admin.firestore.FieldValue.increment(-item.quantity),
-                });
+                if (item.productId && typeof item.productId === "string") {
+                    const productRef = db.collection("products").doc(item.productId);
+                    const quantity = Number(item.quantity) || 1;
+                    batch.update(productRef, {
+                        stock: admin.firestore.FieldValue.increment(-quantity),
+                    });
+                }
             }
         }
 
@@ -117,6 +141,6 @@ export const verifyRazorpayPayment = functions.https.onCall(async (data: any, co
         return { success: true, orderId: orderRef.id };
     } catch (error: any) {
         console.error("Payment Verification Error:", error);
-        throw new functions.https.HttpsError("internal", error.message);
+        throw new functions.https.HttpsError("internal", error.message || "Payment verification crashed unexpectedly");
     }
 });

@@ -44,14 +44,17 @@ export default function CheckoutPage() {
     });
     const [paymentMethod, setPaymentMethod] = useState<"COD" | "ONLINE">("ONLINE");
 
+    const [orderConfirmed, setOrderConfirmed] = useState(false);
+    const [lastOrderId, setLastOrderId] = useState("");
+
     useEffect(() => {
-        if (!user && !loading) {
+        if (!user && !loading && !orderConfirmed) {
             router.push("/login?redirect=/checkout");
         }
-        if (items.length === 0 && !loading) {
+        if (items.length === 0 && !loading && !orderConfirmed) {
             router.push("/cart");
         }
-    }, [user, items, router, loading]);
+    }, [user, items, router, loading, orderConfirmed]);
 
     const total = getTotalPrice();
     const gstRate = 0.18; // Default 18% GST (already inclusive)
@@ -86,11 +89,9 @@ export default function CheckoutPage() {
         setLoading(true);
         try {
             if (paymentMethod === "COD") {
-                toast.success("Placing order with Cash on Delivery...");
-                // Assuming your backend has a 'placeOrder' function
                 const placeOrderFn = httpsCallable(functions, "placeOrder");
                 const { data: result }: any = await placeOrderFn({
-                    items: items.map(i => ({ productId: i.productId, quantity: i.quantity })),
+                    items: items.map(i => ({ productId: i.productId, quantity: i.quantity, product: i.product })),
                     address,
                     isGstInvoice,
                     gstDetails,
@@ -98,9 +99,10 @@ export default function CheckoutPage() {
                     totalAmount: total
                 });
                 if (result.success) {
-                    toast.success("Order placed successfully (COD)!");
+                    setLastOrderId(result.orderId);
+                    setOrderConfirmed(true);
                     clearCart();
-                    router.push("/profile");
+                    toast.success("Order placed successfully!");
                 }
             } else {
                 // Online Payment (Razorpay)
@@ -121,7 +123,7 @@ export default function CheckoutPage() {
                                 razorpayOrderId: response.razorpay_order_id,
                                 razorpayPaymentId: response.razorpay_payment_id,
                                 razorpaySignature: response.razorpay_signature,
-                                items: items.map(i => ({ productId: i.productId, quantity: i.quantity })),
+                                items: items.map(i => ({ productId: i.productId, quantity: i.quantity, product: i.product })),
                                 address,
                                 isGstInvoice,
                                 gstDetails,
@@ -129,9 +131,10 @@ export default function CheckoutPage() {
                             });
 
                             if (result.success) {
-                                toast.success("Order placed successfully!");
+                                setLastOrderId(result.orderId);
+                                setOrderConfirmed(true);
                                 clearCart();
-                                router.push("/profile");
+                                toast.success("Order placed successfully!");
                             }
                         } catch (err: any) {
                             toast.error("Verification failed: " + err.message);
@@ -155,7 +158,35 @@ export default function CheckoutPage() {
         }
     };
 
-    if (!user || items.length === 0) return (
+    if (orderConfirmed) {
+        return (
+            <div className="max-w-xl mx-auto py-20 px-4 text-center space-y-8 animate-in zoom-in-95 duration-500">
+                <div className="relative inline-block">
+                    <div className="h-24 w-24 bg-green-500 text-white rounded-[2rem] flex items-center justify-center mx-auto shadow-2xl shadow-green-500/30 scale-110">
+                        <CheckCircle2 className="h-12 w-12" />
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    <h1 className="text-4xl font-black tracking-tight">Order Confirmed!</h1>
+                    <p className="text-muted-foreground font-medium">Thank you for shopping with us. Your order is being processed.</p>
+                </div>
+                <div className="p-6 bg-muted/30 rounded-3xl border-2 border-dashed border-muted-foreground/20">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Order Transaction ID</p>
+                    <p className="text-xl font-mono font-black text-primary">{lastOrderId}</p>
+                </div>
+                <div className="flex flex-col gap-3">
+                    <Link href="/profile" className="bg-primary text-primary-foreground py-4 rounded-xl font-black shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all">
+                        View My Orders
+                    </Link>
+                    <Link href="/shop" className="text-muted-foreground hover:text-primary font-bold transition-colors">
+                        Continue Shopping
+                    </Link>
+                </div>
+            </div>
+        );
+    }
+
+    if (!user || (items.length === 0 && !orderConfirmed)) return (
         <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-4">
             <Package className="h-12 w-12 text-muted-foreground animate-pulse" />
             <p className="text-xl font-bold">Resuming your session...</p>
@@ -368,10 +399,12 @@ export default function CheckoutPage() {
                                     { id: "ONLINE", title: "Online Payment", desc: "Razorpay / Cards / UPI", icon: CreditCard, color: "text-blue-600" },
                                     { id: "COD", title: "Cash on Delivery", desc: "Pay at your doorstep", icon: Truck, color: "text-primary" }
                                 ].map((meth) => (
-                                    <label key={meth.id} className={cn(
-                                        "flex items-center gap-4 p-6 border rounded-2xl cursor-pointer transition-all relative overflow-hidden",
-                                        paymentMethod === meth.id ? "border-primary bg-primary/5 ring-2 ring-primary/10" : "bg-card hover:bg-muted/10"
-                                    )}>
+                                    <label key={meth.id}
+                                        onClick={() => setPaymentMethod(meth.id as any)}
+                                        className={cn(
+                                            "flex items-center gap-4 p-6 border rounded-2xl cursor-pointer transition-all relative overflow-hidden",
+                                            paymentMethod === meth.id ? "border-primary bg-primary/5 ring-2 ring-primary/10" : "bg-card hover:bg-muted/10"
+                                        )}>
                                         <div className="relative z-10">
                                             <div className={cn(
                                                 "h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all",
