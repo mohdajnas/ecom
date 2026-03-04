@@ -75,9 +75,9 @@ export default function SuperAdminDashboard() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[
-                    { label: "Total Revenue", value: `₹${stats.totalRevenue.toLocaleString()}`, icon: BarChart3, color: "bg-blue-50 text-blue-600" },
-                    { label: "Total Users", value: stats.totalUsers, icon: Users, color: "bg-purple-50 text-purple-600" },
-                    { label: "Total Orders", value: stats.totalOrders, icon: CreditCard, color: "bg-green-50 text-green-600" }
+                    { label: "Total Revenue", value: `₹${stats.totalRevenue.toLocaleString()}`, icon: BarChart3, color: "bg-stone-100 text-stone-600" },
+                    { label: "Total Users", value: stats.totalUsers, icon: Users, color: "bg-orange-50 text-orange-600" },
+                    { label: "Total Orders", value: stats.totalOrders, icon: CreditCard, color: "bg-amber-50 text-amber-700" }
                 ].map((item, i) => (
                     <div key={i} className="p-6 border rounded-3xl space-y-2">
                         <div className={item.color + " p-3 w-fit rounded-2xl mb-2"}>

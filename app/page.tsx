@@ -74,19 +74,29 @@ export default function Home() {
   return (
     <div className="space-y-16">
       {/* Hero Section */}
-      <section className="relative overflow-hidden rounded-[2.5rem] bg-primary px-8 py-16 text-primary-foreground shadow-2xl shadow-primary/20">
+      <section className="relative overflow-hidden rounded-[2.5rem] bg-zinc-900 px-8 py-16 text-white shadow-2xl">
+        {/* Background Image */}
+        <div className="absolute inset-0 z-0">
+          <img
+            src="/banner.png"
+            alt="Store Banner"
+            className="h-full w-full object-cover opacity-60"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent" />
+        </div>
+
         <div className="relative z-10 max-w-2xl space-y-6 animate-in fade-in slide-in-from-left-8 duration-700">
           <h1 className="text-5xl font-black tracking-tight lg:text-7xl leading-[0.9]">
-            Shop the <span className="text-accent underline decoration-8 underline-offset-8">Future</span> of Style.
+            Shop the <span className="text-[#E5D2B3] underline decoration-8 underline-offset-8">Future</span> of Style.
           </h1>
-          <p className="text-lg opacity-90 max-w-lg leading-relaxed">
+          <p className="text-lg opacity-90 max-w-lg leading-relaxed font-medium">
             Discover a curated collection of premium products designed for modern living.
             Join Thousands of satisfied customers at <span className="font-bold">yabuku.in</span>.
           </p>
           <div className="flex flex-wrap gap-4 pt-4">
             <Link
               href="/shop"
-              className="group flex items-center gap-3 rounded-2xl bg-white px-10 py-5 text-lg font-black text-primary transition-all hover:scale-105 hover:shadow-xl active:scale-95"
+              className="group flex items-center gap-3 rounded-2xl bg-[#E5D2B3] px-10 py-5 text-lg font-black text-zinc-950 transition-all hover:scale-105 hover:shadow-xl active:scale-95"
             >
               Start Shopping <ShoppingBag className="h-6 w-6 transition-transform group-hover:rotate-12" />
             </Link>
@@ -98,10 +108,6 @@ export default function Home() {
             </Link>
           </div>
         </div>
-
-        {/* Abstract background elements */}
-        <div className="absolute -right-20 -top-20 h-96 w-96 rounded-full bg-white/10 blur-[120px] animate-pulse" />
-        <div className="absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-accent/20 blur-[80px]" />
       </section>
 
       {/* Shop by Category Section */}
@@ -128,8 +134,8 @@ export default function Home() {
             categories.slice(0, 6).map((cat, i) => {
               const Icon = getCategoryIcon(cat);
               const colors = [
-                "bg-orange-50 text-orange-600 hover:border-orange-200",
-                "bg-blue-50 text-blue-600 hover:border-blue-200",
+                "bg-stone-50 text-stone-600 hover:border-stone-200",
+                "bg-stone-50 text-stone-600 hover:border-stone-200",
                 "bg-pink-50 text-pink-600 hover:border-pink-200",
                 "bg-purple-50 text-purple-600 hover:border-purple-200",
                 "bg-green-50 text-green-600 hover:border-green-200",

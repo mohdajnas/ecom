@@ -6,7 +6,7 @@ import { useAuthStore } from "@/lib/store/useAuthStore";
 import { useCartStore } from "@/lib/store/useCartStore";
 import { useWishlistStore } from "@/lib/store/useWishlistStore";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export const Navbar = () => {
@@ -14,7 +14,12 @@ export const Navbar = () => {
     const { getTotalItems } = useCartStore();
     const { items: wishlistItems } = useWishlistStore();
     const [searchQuery, setSearchQuery] = useState("");
+    const [mounted, setMounted] = useState(false);
     const router = useRouter();
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
@@ -50,7 +55,7 @@ export const Navbar = () => {
                 <div className="flex items-center gap-4">
                     <Link href="/wishlist" className="p-2 hover:bg-muted rounded-full relative">
                         <Heart className="h-5 w-5" />
-                        {wishlistItems.length > 0 && (
+                        {mounted && wishlistItems.length > 0 && (
                             <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
                                 {wishlistItems.length}
                             </span>
@@ -58,7 +63,7 @@ export const Navbar = () => {
                     </Link>
                     <Link href="/cart" className="p-2 hover:bg-muted rounded-full relative">
                         <ShoppingCart className="h-5 w-5" />
-                        {getTotalItems() > 0 && (
+                        {mounted && getTotalItems() > 0 && (
                             <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
                                 {getTotalItems()}
                             </span>
