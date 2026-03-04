@@ -7,7 +7,7 @@ import { collection, query, getDocs, addDoc, serverTimestamp, deleteDoc, doc, up
 import { db } from "@/lib/firebase/config";
 import { toast } from "react-hot-toast";
 import { Plus, Package, ListOrdered, Trash2, Edit, LayoutDashboard, Image as ImageIcon, Upload, X } from "lucide-react";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, cn } from "@/lib/utils";
 import { compressImageToBase64 } from "@/lib/utils/cropImage";
 
 export default function AdminDashboard() {
@@ -17,7 +17,7 @@ export default function AdminDashboard() {
     const [loading, setLoading] = useState(true);
     const [isAdding, setIsAdding] = useState(false);
     const [editingProduct, setEditingProduct] = useState<any>(null);
-    const [categories, setCategories] = useState<string[]>(["Electronics", "Fashion", "Home", "Beauty"]);
+    const [categories, setCategories] = useState<any[]>([]);
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
@@ -25,10 +25,14 @@ export default function AdminDashboard() {
     const [newProduct, setNewProduct] = useState({
         name: "",
         price: 0,
-        category: "Electronics",
+        category: "",
         stock: 10,
         description: ""
     });
+
+    const [activeTab, setActiveTab] = useState<"products" | "orders" | "categories">("products");
+    const [orders, setOrders] = useState<any[]>([]);
+    const [newCategoryName, setNewCategoryName] = useState("");
 
     useEffect(() => {
         if (!authLoading && (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN"))) {
@@ -36,19 +40,69 @@ export default function AdminDashboard() {
         } else if (user) {
             fetchProducts();
             fetchCategories();
+            fetchOrders();
         }
     }, [user, authLoading, router]);
+
+    const fetchOrders = async () => {
+        try {
+            const q = query(collection(db, "orders"));
+            const snap = await getDocs(q);
+            setOrders(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        } catch (error) {
+            console.error("Error fetching orders:", error);
+        }
+    };
 
     const fetchCategories = async () => {
         try {
             const q = query(collection(db, "categories"));
             const snap = await getDocs(q);
-            const cats = snap.docs.map(doc => doc.data().name);
-            if (cats.length > 0) {
-                setCategories(cats);
+            const cats = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+            setCategories(cats);
+            if (cats.length > 0 && !newProduct.category) {
+                setNewProduct(prev => ({ ...prev, category: cats[0].name }));
             }
         } catch (error) {
             console.error("Error fetching categories:", error);
+        }
+    };
+
+    const handleAddCategory = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newCategoryName.trim()) return;
+        try {
+            await addDoc(collection(db, "categories"), {
+                name: newCategoryName.trim(),
+                createdAt: serverTimestamp()
+            });
+            setNewCategoryName("");
+            toast.success("Category added!");
+            fetchCategories();
+        } catch (error) {
+            toast.error("Failed to add category");
+        }
+    };
+
+    const deleteCategory = async (id: string) => {
+        if (!confirm("Are you sure?")) return;
+        try {
+            await deleteDoc(doc(db, "categories", id));
+            toast.success("Category deleted");
+            fetchCategories();
+        } catch (error) {
+            toast.error("Delete failed");
+        }
+    };
+
+    const updateOrderStatus = async (orderId: string, newStatus: string) => {
+        try {
+            const orderRef = doc(db, "orders", orderId);
+            await updateDoc(orderRef, { status: newStatus });
+            toast.success("Status updated");
+            fetchOrders();
+        } catch (error) {
+            toast.error("Update failed");
         }
     };
 
@@ -92,7 +146,7 @@ export default function AdminDashboard() {
             setNewProduct({
                 name: "",
                 price: 0,
-                category: "Electronics",
+                category: categories[0]?.name || "Electronics",
                 stock: 10,
                 description: ""
             });
@@ -164,242 +218,370 @@ export default function AdminDashboard() {
 
     if (authLoading || loading) return <div className="p-20 text-center">Loading...</div>;
 
-    return (
-        <div className="space-y-8">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <LayoutDashboard className="h-8 w-8 text-primary" />
-                    <h1 className="text-3xl font-bold">Admin Panel</h1>
+    const renderProducts = () => (
+        <>
+            {isAdding ? (
+                <div className="p-6 border rounded-2xl bg-card space-y-6 animate-in fade-in zoom-in duration-200">
+                    <h2 className="text-xl font-bold">New Product</h2>
+                    <form onSubmit={handleAddProduct} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="md:col-span-2">
+                            <label className="text-sm font-medium">Product Name</label>
+                            <input
+                                required
+                                className="mt-1 block w-full rounded-xl border bg-muted/50 px-4 py-2 outline-none focus:ring-2 focus:ring-primary text-sm"
+                                value={newProduct.name}
+                                onChange={e => setNewProduct({ ...newProduct, name: e.target.value })}
+                            />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium">Price (INR)</label>
+                            <input
+                                type="number"
+                                required
+                                className="mt-1 block w-full rounded-xl border bg-muted/50 px-4 py-2 outline-none focus:ring-2 focus:ring-primary text-sm"
+                                value={newProduct.price}
+                                onChange={e => setNewProduct({ ...newProduct, price: Number(e.target.value) })}
+                            />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium">Stock</label>
+                            <input
+                                type="number"
+                                required
+                                className="mt-1 block w-full rounded-xl border bg-muted/50 px-4 py-2 outline-none focus:ring-2 focus:ring-primary text-sm"
+                                value={newProduct.stock}
+                                onChange={e => setNewProduct({ ...newProduct, stock: Number(e.target.value) })}
+                            />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium">Category</label>
+                            <select
+                                className="mt-1 block w-full rounded-xl border bg-muted/50 px-4 py-2 outline-none focus:ring-2 focus:ring-primary text-sm"
+                                value={newProduct.category}
+                                onChange={e => setNewProduct({ ...newProduct, category: e.target.value })}
+                            >
+                                {categories.map((cat: any) => (
+                                    <option key={cat.id || cat} value={cat.name || cat}>{cat.name || cat}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="text-sm font-medium">Product Description</label>
+                            <textarea
+                                rows={3}
+                                className="mt-1 block w-full rounded-xl border bg-muted/50 px-4 py-2 outline-none focus:ring-2 focus:ring-primary text-sm"
+                                value={newProduct.description}
+                                onChange={e => setNewProduct({ ...newProduct, description: e.target.value })}
+                            />
+                        </div>
+
+                        <div className="md:col-span-2">
+                            <label className="text-sm font-medium">Product Image</label>
+                            <div className="mt-2 flex items-center gap-4">
+                                <div className="relative h-24 w-24 rounded-2xl border-2 border-dashed flex items-center justify-center bg-muted/30 overflow-hidden">
+                                    {imagePreview ? (
+                                        <img src={imagePreview} alt="Preview" className="h-full w-full object-cover" />
+                                    ) : (
+                                        <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                                    )}
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="cursor-pointer bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-primary/20 transition-colors text-xs">
+                                        <Upload className="h-4 w-4" />
+                                        Choose Image
+                                        <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
+                                    </label>
+                                    <p className="text-[10px] text-muted-foreground">JPG, PNG or WEBP. Max 5MB</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="md:col-span-2 flex gap-3 pt-2">
+                            <button
+                                type="submit"
+                                disabled={uploading}
+                                className="bg-primary text-primary-foreground px-6 py-2.5 rounded-xl font-bold disabled:opacity-50 text-sm"
+                            >
+                                {uploading ? "Adding..." : "Save Product"}
+                            </button>
+                            <button type="button" onClick={() => { setIsAdding(false); setImagePreview(null); setImageFile(null); }} className="border px-6 py-2.5 rounded-xl font-bold text-sm">Cancel</button>
+                        </div>
+                    </form>
                 </div>
-                <button
-                    onClick={() => setIsAdding(true)}
-                    className="bg-primary text-primary-foreground flex items-center gap-2 px-6 py-3 rounded-xl font-bold hover:opacity-90"
-                >
-                    <Plus className="h-5 w-5" /> Add Product
-                </button>
+            ) : editingProduct ? (
+                <div className="p-6 border rounded-2xl bg-card space-y-6 animate-in fade-in zoom-in duration-200">
+                    <h2 className="text-xl font-bold">Edit Product: {editingProduct.name}</h2>
+                    <form onSubmit={handleUpdateProduct} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="md:col-span-2">
+                            <label className="text-sm font-medium">Product Name</label>
+                            <input
+                                required
+                                className="mt-1 block w-full rounded-xl border bg-muted/50 px-4 py-2 outline-none focus:ring-2 focus:ring-primary text-sm"
+                                value={editingProduct.name}
+                                onChange={e => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                            />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium">Price (INR)</label>
+                            <input
+                                type="number"
+                                required
+                                className="mt-1 block w-full rounded-xl border bg-muted/50 px-4 py-2 outline-none focus:ring-2 focus:ring-primary text-sm"
+                                value={editingProduct.price}
+                                onChange={e => setEditingProduct({ ...editingProduct, price: Number(e.target.value) })}
+                            />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium">Stock</label>
+                            <input
+                                type="number"
+                                required
+                                className="mt-1 block w-full rounded-xl border bg-muted/50 px-4 py-2 outline-none focus:ring-2 focus:ring-primary text-sm"
+                                value={editingProduct.stock}
+                                onChange={e => setEditingProduct({ ...editingProduct, stock: Number(e.target.value) })}
+                            />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium">Category</label>
+                            <select
+                                className="mt-1 block w-full rounded-xl border bg-muted/50 px-4 py-2 outline-none focus:ring-2 focus:ring-primary text-sm"
+                                value={editingProduct.category}
+                                onChange={e => setEditingProduct({ ...editingProduct, category: e.target.value })}
+                            >
+                                {categories.map((cat: any) => (
+                                    <option key={cat.id || cat} value={cat.name || cat}>{cat.name || cat}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="text-sm font-medium">Product Description</label>
+                            <textarea
+                                rows={3}
+                                className="mt-1 block w-full rounded-xl border bg-muted/50 px-4 py-2 outline-none focus:ring-2 focus:ring-primary text-sm"
+                                value={editingProduct.description}
+                                onChange={e => setEditingProduct({ ...editingProduct, description: e.target.value })}
+                            />
+                        </div>
+
+                        <div className="md:col-span-2">
+                            <label className="text-sm font-medium">Product Image</label>
+                            <div className="mt-2 flex items-center gap-4">
+                                <div className="relative h-24 w-24 rounded-2xl border-2 border-dashed flex items-center justify-center bg-muted/30 overflow-hidden">
+                                    {imagePreview || editingProduct.imageUrls?.[0] ? (
+                                        <img src={imagePreview || editingProduct.imageUrls[0]} alt="Preview" className="h-full w-full object-cover" />
+                                    ) : (
+                                        <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                                    )}
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="cursor-pointer bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-primary/20 transition-colors text-xs">
+                                        <Upload className="h-4 w-4" />
+                                        Change Image
+                                        <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
+                                    </label>
+                                    <p className="text-[10px] text-muted-foreground">JPG, PNG or WEBP. Max 5MB</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="md:col-span-2 flex gap-3 pt-2">
+                            <button
+                                type="submit"
+                                disabled={uploading}
+                                className="bg-primary text-primary-foreground px-6 py-2.5 rounded-xl font-bold disabled:opacity-50 text-sm"
+                            >
+                                {uploading ? "Updating..." : "Update Product"}
+                            </button>
+                            <button type="button" onClick={() => { setEditingProduct(null); setImagePreview(null); setImageFile(null); }} className="border px-6 py-2.5 rounded-xl font-bold text-sm">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            ) : (
+                <div className="border rounded-2xl overflow-hidden overflow-x-auto shadow-sm">
+                    <table className="w-full text-left">
+                        <thead className="bg-muted">
+                            <tr>
+                                <th className="p-4 font-bold text-xs uppercase tracking-widest">Product</th>
+                                <th className="p-4 font-bold text-xs uppercase tracking-widest">Category</th>
+                                <th className="p-4 font-bold text-xs uppercase tracking-widest">Price</th>
+                                <th className="p-4 font-bold text-xs uppercase tracking-widest text-center">Stock</th>
+                                <th className="p-4 font-bold text-xs uppercase tracking-widest text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y bg-card">
+                            {products.map((p) => (
+                                <tr key={p.id} className="hover:bg-muted/30 transition-colors">
+                                    <td className="p-4 font-bold text-sm">{p.name}</td>
+                                    <td className="p-4 text-xs font-medium text-muted-foreground">{p.category}</td>
+                                    <td className="p-4 text-sm font-black">{formatPrice(p.price)}</td>
+                                    <td className="p-4 text-center">
+                                        <span className={cn(
+                                            "px-3 py-1 rounded-full text-[10px] font-black",
+                                            p.stock < 5 ? "bg-destructive/10 text-destructive" : "bg-green-100 text-green-700"
+                                        )}>{p.stock}</span>
+                                    </td>
+                                    <td className="p-4 text-right flex justify-end gap-2">
+                                        <button onClick={() => { setEditingProduct(p); setIsAdding(false); }} className="p-2 hover:bg-muted rounded-lg transition-colors"><Edit className="h-4 w-4" /></button>
+                                        <button onClick={() => deleteProduct(p.id)} className="p-2 hover:bg-destructive/10 text-destructive rounded-lg transition-colors"><Trash2 className="h-4 w-4" /></button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </>
+    );
+
+    const renderOrders = () => (
+        <div className="border rounded-2xl overflow-hidden overflow-x-auto shadow-sm">
+            <table className="w-full text-left">
+                <thead className="bg-muted">
+                    <tr>
+                        <th className="p-4 font-bold text-xs uppercase tracking-widest">Order ID</th>
+                        <th className="p-4 font-bold text-xs uppercase tracking-widest">Customer</th>
+                        <th className="p-4 font-bold text-xs uppercase tracking-widest">Amount</th>
+                        <th className="p-4 font-bold text-xs uppercase tracking-widest">Status</th>
+                        <th className="p-4 font-bold text-xs uppercase tracking-widest text-right">Method</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y bg-card">
+                    {orders.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis()).map((o) => (
+                        <tr key={o.id} className="hover:bg-muted/30 transition-colors text-sm">
+                            <td className="p-4 font-mono text-[10px] font-bold">{o.id}</td>
+                            <td className="p-4">
+                                <div className="font-bold">{o.address?.fullName || "Guest"}</div>
+                                <div className="text-[10px] text-muted-foreground">{o.address?.city}</div>
+                            </td>
+                            <td className="p-4 font-black">{formatPrice(o.totalAmount)}</td>
+                            <td className="p-4">
+                                <select
+                                    className={cn(
+                                        "text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg outline-none",
+                                        o.status === "DELIVERED" ? "bg-green-100 text-green-700" :
+                                            o.status === "PENDING" ? "bg-yellow-100 text-yellow-700" : "bg-blue-100 text-blue-700"
+                                    )}
+                                    value={o.status || "PENDING"}
+                                    onChange={(e) => updateOrderStatus(o.id, e.target.value)}
+                                >
+                                    <option value="PENDING">Pending</option>
+                                    <option value="PAID">Paid</option>
+                                    <option value="SHIPPED">Shipped</option>
+                                    <option value="DELIVERED">Delivered</option>
+                                    <option value="CANCELLED">Cancelled</option>
+                                </select>
+                            </td>
+                            <td className="p-4 text-right font-bold text-[10px] uppercase tracking-widest text-muted-foreground">{o.paymentMethod}</td>
+                        </tr>
+                    ))}
+                    {orders.length === 0 && (
+                        <tr>
+                            <td colSpan={5} className="p-12 text-center text-muted-foreground font-medium italic">No orders found yet.</td>
+                        </tr>
+                    )}
+                </tbody>
+            </table>
+        </div>
+    );
+
+    const renderCategories = () => (
+        <div className="space-y-6">
+            <div className="p-6 border rounded-2xl bg-card shadow-sm">
+                <h3 className="text-sm font-bold mb-4 uppercase tracking-widest">Create New Category</h3>
+                <form onSubmit={handleAddCategory} className="flex gap-3">
+                    <input
+                        className="flex-grow px-4 py-2 rounded-xl border bg-muted/50 outline-none focus:ring-2 focus:ring-primary text-sm font-medium"
+                        placeholder="e.g. Footwear"
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                    />
+                    <button className="bg-primary text-primary-foreground px-6 py-2 rounded-xl font-bold text-sm">Add</button>
+                </form>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                <div className="lg:col-span-1 space-y-4">
-                    <div className="p-4 border rounded-2xl bg-muted/30">
-                        <h3 className="font-bold flex items-center gap-2 mb-4"><Package className="h-4 w-4" /> Management</h3>
-                        <nav className="space-y-2">
-                            <button className="w-full text-left px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium">Products</button>
-                            <button className="w-full text-left px-4 py-2 hover:bg-muted rounded-lg font-medium">Orders</button>
-                            <button className="w-full text-left px-4 py-2 hover:bg-muted rounded-lg font-medium">Categories</button>
-                        </nav>
+            <div className="border rounded-2xl overflow-hidden shadow-sm">
+                <table className="w-full text-left">
+                    <thead className="bg-muted">
+                        <tr>
+                            <th className="p-4 font-bold text-xs uppercase tracking-widest">Category Name</th>
+                            <th className="p-4 font-bold text-xs uppercase tracking-widest text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y bg-card">
+                        {categories.map((cat: any) => (
+                            <tr key={cat.id} className="hover:bg-muted/30 transition-colors">
+                                <td className="p-4 font-bold text-sm">{cat.name}</td>
+                                <td className="p-4 text-right">
+                                    <button
+                                        onClick={() => deleteCategory(cat.id)}
+                                        className="p-2 hover:bg-destructive/10 text-destructive rounded-lg transition-colors"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+
+    return (
+        <div className="max-w-7xl mx-auto py-8 px-4 space-y-8 animate-in fade-in duration-500">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 bg-primary/10 rounded-2xl flex items-center justify-center">
+                        <LayoutDashboard className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                        <h1 className="text-3xl font-black tracking-tight">Admin Console</h1>
+                        <p className="text-muted-foreground text-xs font-medium uppercase tracking-widest mt-1">Store Management System</p>
                     </div>
                 </div>
-
-                <div className="lg:col-span-3">
-                    {isAdding ? (
-                        <div className="p-8 border rounded-3xl bg-card shadow-sm space-y-6 animate-in fade-in zoom-in duration-200">
-                            <h2 className="text-xl font-bold">New Product</h2>
-                            <form onSubmit={handleAddProduct} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="md:col-span-2">
-                                    <label className="text-sm font-medium">Product Name</label>
-                                    <input
-                                        required
-                                        className="mt-1 block w-full rounded-xl border bg-muted/50 px-4 py-3 outline-none focus:ring-2 focus:ring-primary"
-                                        value={newProduct.name}
-                                        onChange={e => setNewProduct({ ...newProduct, name: e.target.value })}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium">Price (INR)</label>
-                                    <input
-                                        type="number"
-                                        required
-                                        className="mt-1 block w-full rounded-xl border bg-muted/50 px-4 py-3 outline-none focus:ring-2 focus:ring-primary"
-                                        value={newProduct.price}
-                                        onChange={e => setNewProduct({ ...newProduct, price: Number(e.target.value) })}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium">Stock</label>
-                                    <input
-                                        type="number"
-                                        required
-                                        className="mt-1 block w-full rounded-xl border bg-muted/50 px-4 py-3 outline-none focus:ring-2 focus:ring-primary"
-                                        value={newProduct.stock}
-                                        onChange={e => setNewProduct({ ...newProduct, stock: Number(e.target.value) })}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium">Category</label>
-                                    <select
-                                        className="mt-1 block w-full rounded-xl border bg-muted/50 px-4 py-3 outline-none focus:ring-2 focus:ring-primary"
-                                        value={newProduct.category}
-                                        onChange={e => setNewProduct({ ...newProduct, category: e.target.value })}
-                                    >
-                                        {categories.map(cat => (
-                                            <option key={cat} value={cat}>{cat}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="md:col-span-2">
-                                    <label className="text-sm font-medium">Product Description</label>
-                                    <textarea
-                                        rows={4}
-                                        className="mt-1 block w-full rounded-xl border bg-muted/50 px-4 py-3 outline-none focus:ring-2 focus:ring-primary"
-                                        value={newProduct.description}
-                                        onChange={e => setNewProduct({ ...newProduct, description: e.target.value })}
-                                    />
-                                </div>
-
-                                <div className="md:col-span-2">
-                                    <label className="text-sm font-medium">Product Image</label>
-                                    <div className="mt-2 flex items-center gap-6">
-                                        <div className="relative h-32 w-32 rounded-2xl border-2 border-dashed flex items-center justify-center bg-muted/30 overflow-hidden">
-                                            {imagePreview ? (
-                                                <img src={imagePreview} alt="Preview" className="h-full w-full object-cover" />
-                                            ) : (
-                                                <ImageIcon className="h-8 w-8 text-muted-foreground" />
-                                            )}
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="cursor-pointer bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-primary/20 transition-colors">
-                                                <Upload className="h-4 w-4" />
-                                                Choose Image
-                                                <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
-                                            </label>
-                                            <p className="text-xs text-muted-foreground">JPG, PNG or WEBP. Max 5MB</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="md:col-span-2 flex gap-4 pt-4">
-                                    <button
-                                        type="submit"
-                                        disabled={uploading}
-                                        className="bg-primary text-primary-foreground px-8 py-3 rounded-xl font-bold disabled:opacity-50"
-                                    >
-                                        {uploading ? "Adding..." : "Save Product"}
-                                    </button>
-                                    <button type="button" onClick={() => { setIsAdding(false); setImagePreview(null); setImageFile(null); }} className="border px-8 py-3 rounded-xl font-bold">Cancel</button>
-                                </div>
-                            </form>
-                        </div>
-                    ) : editingProduct ? (
-                        <div className="p-8 border rounded-3xl bg-card shadow-sm space-y-6 animate-in fade-in zoom-in duration-200">
-                            <h2 className="text-xl font-bold">Edit Product: {editingProduct.name}</h2>
-                            <form onSubmit={handleUpdateProduct} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="md:col-span-2">
-                                    <label className="text-sm font-medium">Product Name</label>
-                                    <input
-                                        required
-                                        className="mt-1 block w-full rounded-xl border bg-muted/50 px-4 py-3 outline-none focus:ring-2 focus:ring-primary"
-                                        value={editingProduct.name}
-                                        onChange={e => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium">Price (INR)</label>
-                                    <input
-                                        type="number"
-                                        required
-                                        className="mt-1 block w-full rounded-xl border bg-muted/50 px-4 py-3 outline-none focus:ring-2 focus:ring-primary"
-                                        value={editingProduct.price}
-                                        onChange={e => setEditingProduct({ ...editingProduct, price: Number(e.target.value) })}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium">Stock</label>
-                                    <input
-                                        type="number"
-                                        required
-                                        className="mt-1 block w-full rounded-xl border bg-muted/50 px-4 py-3 outline-none focus:ring-2 focus:ring-primary"
-                                        value={editingProduct.stock}
-                                        onChange={e => setEditingProduct({ ...editingProduct, stock: Number(e.target.value) })}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium">Category</label>
-                                    <select
-                                        className="mt-1 block w-full rounded-xl border bg-muted/50 px-4 py-3 outline-none focus:ring-2 focus:ring-primary"
-                                        value={editingProduct.category}
-                                        onChange={e => setEditingProduct({ ...editingProduct, category: e.target.value })}
-                                    >
-                                        {categories.map(cat => (
-                                            <option key={cat} value={cat}>{cat}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="md:col-span-2">
-                                    <label className="text-sm font-medium">Product Description</label>
-                                    <textarea
-                                        rows={4}
-                                        className="mt-1 block w-full rounded-xl border bg-muted/50 px-4 py-3 outline-none focus:ring-2 focus:ring-primary"
-                                        value={editingProduct.description}
-                                        onChange={e => setEditingProduct({ ...editingProduct, description: e.target.value })}
-                                    />
-                                </div>
-
-                                <div className="md:col-span-2">
-                                    <label className="text-sm font-medium">Product Image</label>
-                                    <div className="mt-2 flex items-center gap-6">
-                                        <div className="relative h-32 w-32 rounded-2xl border-2 border-dashed flex items-center justify-center bg-muted/30 overflow-hidden">
-                                            {imagePreview || editingProduct.imageUrls?.[0] ? (
-                                                <img src={imagePreview || editingProduct.imageUrls[0]} alt="Preview" className="h-full w-full object-cover" />
-                                            ) : (
-                                                <ImageIcon className="h-8 w-8 text-muted-foreground" />
-                                            )}
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="cursor-pointer bg-primary/10 text-primary px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-primary/20 transition-colors">
-                                                <Upload className="h-4 w-4" />
-                                                Change Image
-                                                <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
-                                            </label>
-                                            <p className="text-xs text-muted-foreground">JPG, PNG or WEBP. Max 5MB</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="md:col-span-2 flex gap-4 pt-4">
-                                    <button
-                                        type="submit"
-                                        disabled={uploading}
-                                        className="bg-primary text-primary-foreground px-8 py-3 rounded-xl font-bold disabled:opacity-50"
-                                    >
-                                        {uploading ? "Updating..." : "Update Product"}
-                                    </button>
-                                    <button type="button" onClick={() => { setEditingProduct(null); setImagePreview(null); setImageFile(null); }} className="border px-8 py-3 rounded-xl font-bold">Cancel</button>
-                                </div>
-                            </form>
-                        </div>
-                    ) : (
-                        <div className="border rounded-3xl overflow-hidden overflow-x-auto">
-                            <table className="w-full text-left">
-                                <thead className="bg-muted">
-                                    <tr>
-                                        <th className="p-4 font-bold">Product</th>
-                                        <th className="p-4 font-bold">Category</th>
-                                        <th className="p-4 font-bold">Price</th>
-                                        <th className="p-4 font-bold">Stock</th>
-                                        <th className="p-4 font-bold text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y">
-                                    {products.map((p) => (
-                                        <tr key={p.id} className="hover:bg-muted/30 transition-colors">
-                                            <td className="p-4 font-medium">{p.name}</td>
-                                            <td className="p-4 text-muted-foreground">{p.category}</td>
-                                            <td className="p-4 font-bold">{formatPrice(p.price)}</td>
-                                            <td className="p-4">
-                                                <span className={p.stock < 5 ? "text-destructive font-bold" : ""}>{p.stock}</span>
-                                            </td>
-                                            <td className="p-4 text-right flex justify-end gap-2">
-                                                <button onClick={() => { setEditingProduct(p); setIsAdding(false); }} className="p-2 hover:bg-muted rounded-lg"><Edit className="h-4 w-4" /></button>
-                                                <button onClick={() => deleteProduct(p.id)} className="p-2 hover:bg-destructive/10 text-destructive rounded-lg"><Trash2 className="h-4 w-4" /></button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                <div className="flex items-center gap-3">
+                    {activeTab === "products" && !isAdding && !editingProduct && (
+                        <button
+                            onClick={() => setIsAdding(true)}
+                            className="bg-primary text-primary-foreground flex items-center gap-2 px-6 py-2.5 rounded-xl font-black shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all text-sm"
+                        >
+                            <Plus className="h-4 w-4" /> Add Product
+                        </button>
                     )}
                 </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                <aside className="lg:col-span-1 space-y-4">
+                    <div className="p-6 border rounded-3xl bg-card shadow-sm space-y-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-4 opacity-50">Navigation</p>
+                        {[
+                            { id: "products", label: "Inventory", icon: Package },
+                            { id: "orders", label: "Orders", icon: ListOrdered },
+                            { id: "categories", label: "Catalog", icon: Edit }
+                        ].map((tab) => (
+                            <button
+                                key={tab.id}
+                                onClick={() => { setActiveTab(tab.id as any); setIsAdding(false); setEditingProduct(null); }}
+                                className={cn(
+                                    "w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all text-sm",
+                                    activeTab === tab.id ?
+                                        "bg-primary text-primary-foreground shadow-md shadow-primary/20" :
+                                        "text-muted-foreground hover:bg-muted/50"
+                                )}
+                            >
+                                <tab.icon className="h-4 w-4" />
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+                </aside>
+
+                <main className="lg:col-span-4 min-h-[600px]">
+                    {activeTab === "products" && renderProducts()}
+                    {activeTab === "orders" && renderOrders()}
+                    {activeTab === "categories" && renderCategories()}
+                </main>
             </div>
         </div>
     );

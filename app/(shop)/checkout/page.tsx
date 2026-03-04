@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { httpsCallable } from "firebase/functions";
 import { functions, db } from "@/lib/firebase/config";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, doc, writeBatch, increment } from "firebase/firestore";
 import Link from "next/link";
 
 // Types
@@ -86,32 +86,50 @@ export default function CheckoutPage() {
         window.scrollTo(0, 0);
     };
 
+    const saveOrderToFirestore = async (pm: "COD" | "ONLINE", paymentDetails: any = null) => {
+        if (!user) return;
+        const batch = writeBatch(db);
+
+        // 1. Create Order Doc
+        const orderRef = doc(collection(db, "orders"));
+        const orderData = {
+            userId: user.uid,
+            items: items.map(i => ({
+                productId: i.productId,
+                quantity: i.quantity,
+                productName: i.product?.name || "Product",
+                price: i.product?.price || 0
+            })),
+            address,
+            isGstInvoice,
+            gstDetails: isGstInvoice ? gstDetails : null,
+            paymentMethod: pm,
+            totalAmount: total,
+            status: pm === "COD" ? "PENDING" : "PAID",
+            createdAt: serverTimestamp(),
+            ...paymentDetails
+        };
+        batch.set(orderRef, orderData);
+
+        // 2. Decrement Stock for each item
+        items.forEach(item => {
+            const productRef = doc(db, "products", item.productId);
+            batch.update(productRef, {
+                stock: increment(-item.quantity)
+            });
+        });
+
+        await batch.commit();
+        return orderRef.id;
+    };
+
     const handlePlaceOrder = async () => {
         if (!user) return;
         setLoading(true);
         try {
             if (paymentMethod === "COD") {
-                // Client-side Firestore creation (Spark Plan / Option 2)
-                const orderData = {
-                    userId: user.uid,
-                    items: items.map(i => ({
-                        productId: i.productId,
-                        quantity: i.quantity,
-                        productName: i.product?.name || "Product",
-                        price: i.product?.price || 0
-                    })),
-                    address,
-                    isGstInvoice,
-                    gstDetails: isGstInvoice ? gstDetails : null,
-                    paymentMethod: "COD",
-                    totalAmount: total,
-                    status: "PENDING",
-                    createdAt: serverTimestamp()
-                };
-
-                const orderRef = await addDoc(collection(db, "orders"), orderData);
-
-                setLastOrderId(orderRef.id);
+                const orderId = await saveOrderToFirestore("COD");
+                setLastOrderId(orderId as string);
                 setOrderConfirmed(true);
                 clearCart();
                 toast.success("Order placed successfully!");
@@ -137,7 +155,6 @@ export default function CheckoutPage() {
                     order_id: order.id,
                     handler: async function (response: any) {
                         try {
-                            // Try verification first
                             const verifyPayment = httpsCallable(functions, "verifyRazorpayPayment");
                             const { data: result }: any = await verifyPayment({
                                 razorpayOrderId: response.razorpay_order_id,
@@ -157,28 +174,13 @@ export default function CheckoutPage() {
                                 toast.success("Order placed successfully!");
                             }
                         } catch (err: any) {
-                            // Fallback: Save directly if Cloud Function fails (less secure but works on Spark)
-                            toast.loading("Verifying and saving order...");
-                            const orderData = {
-                                userId: user.uid,
-                                items: items.map(i => ({
-                                    productId: i.productId,
-                                    quantity: i.quantity,
-                                    productName: i.product?.name || "Product",
-                                    price: i.product?.price || 0
-                                })),
-                                address,
-                                isGstInvoice,
-                                gstDetails: isGstInvoice ? gstDetails : null,
-                                paymentMethod: "ONLINE",
+                            // Fallback: Save directly if Cloud Function fails
+                            toast.loading("Recording order...");
+                            const orderId = await saveOrderToFirestore("ONLINE", {
                                 razorpayOrderId: response.razorpay_order_id,
                                 razorpayPaymentId: response.razorpay_payment_id,
-                                totalAmount: total,
-                                status: "PAID",
-                                createdAt: serverTimestamp()
-                            };
-                            const orderRef = await addDoc(collection(db, "orders"), orderData);
-                            setLastOrderId(orderRef.id);
+                            });
+                            setLastOrderId(orderId as string);
                             setOrderConfirmed(true);
                             clearCart();
                             toast.dismiss();
