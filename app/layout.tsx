@@ -10,6 +10,9 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "yabuku.in | Premium E-commerce",
   description: "Modern E-commerce built with Next.js and Firebase",
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default function RootLayout({

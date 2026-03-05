@@ -53,9 +53,8 @@ export default function RegisterPage() {
         <div className="flex min-h-[70vh] items-center justify-center">
             <div className="w-full max-w-md space-y-8 rounded-3xl border p-8 shadow-sm">
                 <div className="text-center">
-                    <Link href="/" className="inline-flex items-center space-x-2">
-                        <Store className="h-8 w-8 text-primary" />
-                        <span className="text-2xl font-bold">yabuku.in</span>
+                    <Link href="/" className="inline-flex items-center">
+                        <img src="/logo.png" alt="yabuku.in" className="h-10 w-auto object-contain" />
                     </Link>
                     <h2 className="mt-6 text-3xl font-bold tracking-tight">Create Account</h2>
                     <p className="mt-2 text-sm text-muted-foreground">

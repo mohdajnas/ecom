@@ -79,9 +79,8 @@ export const Footer = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 lg:gap-8">
                     {/* Brand & Newsletter */}
                     <div className="lg:col-span-2 space-y-8">
-                        <Link href="/" className="flex items-center space-x-2">
-                            <Store className="h-8 w-8 text-primary" />
-                            <span className="text-2xl font-bold tracking-tighter">yabuku.in</span>
+                        <Link href="/" className="flex items-center">
+                            <img src="/logo.png" alt="yabuku.in" className="h-10 w-auto object-contain" />
                         </Link>
                         <p className="text-muted-foreground max-w-sm leading-relaxed">
                             Experience the best in premium e-commerce. Quality products curated for your modern lifestyle.
