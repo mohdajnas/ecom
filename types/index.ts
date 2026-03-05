@@ -16,6 +16,7 @@ export interface UserProfile {
 export interface Address {
     id: string;
     label: string;
+    buildingName?: string;
     street: string;
     city: string;
     state: string;

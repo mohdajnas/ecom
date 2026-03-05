@@ -105,11 +105,22 @@ export default function CartPage() {
                         </div>
                         <div className="flex justify-between text-sm text-muted-foreground">
                             <span className="font-medium">Shipping</span>
-                            <span className="text-green-600 font-bold uppercase text-[10px] tracking-widest">Free</span>
+                            {getTotalPrice() >= 999 ? (
+                                <span className="text-green-600 font-bold uppercase text-[10px] tracking-widest">Free</span>
+                            ) : (
+                                <span className="font-bold text-foreground">{formatPrice(79)}</span>
+                            )}
                         </div>
+                        {getTotalPrice() < 999 && (
+                            <div className="p-2 bg-primary/5 rounded-lg border border-primary/10">
+                                <p className="text-[9px] font-bold text-primary leading-tight text-center">
+                                    Add {formatPrice(999 - getTotalPrice())} more for <span className="underline italic">FREE DELIVERY</span>
+                                </p>
+                            </div>
+                        )}
                         <div className="border-t border-dashed pt-3 flex justify-between text-lg font-black">
                             <span>Total</span>
-                            <span className="text-primary">{formatPrice(getTotalPrice())}</span>
+                            <span className="text-primary">{formatPrice(getTotalPrice() + (getTotalPrice() >= 999 ? 0 : 79))}</span>
                         </div>
                     </div>
                     <button

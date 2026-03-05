@@ -29,7 +29,8 @@ export default function CheckoutPage() {
     // Form States
     const [address, setAddress] = useState({
         fullName: user?.name || "",
-        phone: "",
+        phone: user?.phoneNumber || "",
+        buildingName: "",
         street: "",
         city: "",
         state: "",
@@ -57,10 +58,14 @@ export default function CheckoutPage() {
         }
     }, [user, items, router, loading, orderConfirmed]);
 
-    const total = getTotalPrice();
+    const cartTotal = getTotalPrice();
+    const shippingThreshold = 999;
+    const shippingFee = cartTotal >= shippingThreshold ? 0 : 79;
+    const total = cartTotal + shippingFee;
+
     const gstRate = 0.18; // Default 18% GST (already inclusive)
-    const subtotal = total / (1 + gstRate);
-    const gstAmount = total - subtotal;
+    const subtotal = cartTotal / (1 + gstRate);
+    const gstAmount = cartTotal - subtotal;
 
     const handleNext = () => {
         if (step === 1) {
@@ -286,10 +291,57 @@ export default function CheckoutPage() {
 
                     {step === 1 && (
                         <div className="space-y-8">
-                            <div className="space-y-2">
-                                <h1 className="text-2xl font-black tracking-tight">Delivery Address</h1>
-                                <p className="text-muted-foreground text-sm">Where should we send your order?</p>
+                            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                                <div className="space-y-2">
+                                    <h1 className="text-2xl font-black tracking-tight">Delivery Address</h1>
+                                    <p className="text-muted-foreground text-sm">Where should we send your order?</p>
+                                </div>
                             </div>
+
+                            {/* Saved Address Selection */}
+                            {user?.addresses && user.addresses.length > 0 && (
+                                <div className="space-y-3">
+                                    <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 px-1">
+                                        <Package className="h-3 w-3" /> Select Saved Address
+                                    </h3>
+                                    <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide px-1">
+                                        {user.addresses.map((savedAddr) => (
+                                            <button
+                                                key={savedAddr.id}
+                                                onClick={() => setAddress({
+                                                    ...address,
+                                                    buildingName: savedAddr.buildingName || "",
+                                                    street: savedAddr.street,
+                                                    city: savedAddr.city,
+                                                    state: savedAddr.state,
+                                                    pincode: savedAddr.zipCode,
+                                                })}
+                                                className={cn(
+                                                    "flex-shrink-0 w-64 p-4 border-2 rounded-2xl text-left transition-all relative overflow-hidden",
+                                                    address.street === savedAddr.street && address.pincode === savedAddr.zipCode
+                                                        ? "border-primary bg-primary/5 ring-1 ring-primary/20 shadow-lg shadow-primary/5"
+                                                        : "bg-card hover:border-primary/50"
+                                                )}
+                                            >
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className="text-[10px] font-black px-2 py-0.5 bg-primary/10 text-primary rounded-full uppercase tracking-tighter">
+                                                        {savedAddr.label}
+                                                    </span>
+                                                    {address.street === savedAddr.street && address.pincode === savedAddr.zipCode && (
+                                                        <CheckCircle2 className="h-4 w-4 text-primary" />
+                                                    )}
+                                                </div>
+                                                <p className="text-sm font-bold truncate">
+                                                    {savedAddr.buildingName ? `${savedAddr.buildingName}, ` : ""}{savedAddr.street}
+                                                </p>
+                                                <p className="text-[10px] text-muted-foreground font-medium truncate">
+                                                    {savedAddr.city}, {savedAddr.state} - {savedAddr.zipCode}
+                                                </p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 border rounded-2xl bg-card/50 shadow-sm">
                                 <div className="space-y-2">
@@ -316,13 +368,24 @@ export default function CheckoutPage() {
                                 </div>
                                 <div className="md:col-span-2 space-y-2">
                                     <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                                        <Home className="h-3.5 w-3.5 text-primary" /> Street Address
+                                        <Building2 className="h-3.5 w-3.5 text-primary" /> Home / Building Name
+                                    </label>
+                                    <input
+                                        className="w-full px-4 py-3 rounded-xl border bg-background focus:border-primary outline-none transition-all font-bold text-sm"
+                                        value={address.buildingName}
+                                        onChange={(e) => setAddress({ ...address, buildingName: e.target.value })}
+                                        placeholder="Flat 101, Building Name"
+                                    />
+                                </div>
+                                <div className="md:col-span-2 space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+                                        <Home className="h-3.5 w-3.5 text-primary" /> Street Address / Colony
                                     </label>
                                     <textarea
                                         className="w-full px-4 py-3 rounded-xl border bg-background focus:border-primary outline-none transition-all font-bold text-sm"
                                         value={address.street}
                                         onChange={(e) => setAddress({ ...address, street: e.target.value })}
-                                        placeholder="Address"
+                                        placeholder="Detailed Street Address"
                                         rows={2}
                                     />
                                 </div>
@@ -503,8 +566,19 @@ export default function CheckoutPage() {
                                 </div>
                                 <div className="flex justify-between text-xs text-muted-foreground">
                                     <span className="font-bold uppercase tracking-widest">Delivery</span>
-                                    <span className="text-green-600 font-black text-[10px]">FREE</span>
+                                    {shippingFee === 0 ? (
+                                        <span className="text-green-600 font-black text-[10px]">FREE</span>
+                                    ) : (
+                                        <span className="font-black text-foreground">{formatPrice(shippingFee)}</span>
+                                    )}
                                 </div>
+                                {shippingFee > 0 && (
+                                    <div className="p-2 bg-primary/5 rounded-lg border border-primary/10">
+                                        <p className="text-[9px] font-bold text-primary leading-tight text-center">
+                                            Add {formatPrice(shippingThreshold - cartTotal)} more for <span className="underline italic">FREE DELIVERY</span>
+                                        </p>
+                                    </div>
+                                )}
                                 <div className="border-t border-dashed pt-4 flex justify-between text-2xl font-black">
                                     <span>Total</span>
                                     <span className="text-primary">{formatPrice(total)}</span>

@@ -46,6 +46,20 @@ export default function ProfilePage() {
         expiryYear: ""
     });
 
+    // Address management states
+    const [isAddingAddress, setIsAddingAddress] = useState(false);
+    const [isEditingAddress, setIsEditingAddress] = useState(false);
+    const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
+    const [newAddress, setNewAddress] = useState({
+        label: "Home",
+        buildingName: "",
+        street: "",
+        city: "",
+        state: "",
+        zipCode: "",
+        isDefault: false
+    });
+
     useEffect(() => {
         if (!authLoading && !user) {
             router.push("/login");
@@ -208,6 +222,102 @@ export default function ProfilePage() {
         }
     };
 
+    const handleSaveAddress = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user || !newAddress.buildingName || !newAddress.street || !newAddress.city || !newAddress.state || !newAddress.zipCode) {
+            toast.error("Please fill all required address fields");
+            return;
+        }
+
+        try {
+            let updatedAddresses: Address[];
+            const addresses = user.addresses || [];
+
+            if (isEditingAddress && editingAddressId) {
+                updatedAddresses = addresses.map(addr =>
+                    addr.id === editingAddressId ? { ...newAddress, id: editingAddressId } : addr
+                );
+            } else {
+                const addressId = Math.random().toString(36).substr(2, 9);
+                const addressWithId = { ...newAddress, id: addressId };
+                updatedAddresses = [...addresses, addressWithId];
+            }
+
+            // If this is set as default, unset others
+            if (newAddress.isDefault) {
+                updatedAddresses = updatedAddresses.map(addr => ({
+                    ...addr,
+                    isDefault: addr.id === (isEditingAddress ? editingAddressId : updatedAddresses[updatedAddresses.length - 1].id)
+                }));
+            } else if (updatedAddresses.length === 1) {
+                // First address should be default
+                updatedAddresses[0].isDefault = true;
+            }
+
+            const userRef = doc(db, "users", user.uid);
+            await setDoc(userRef, { addresses: updatedAddresses }, { merge: true });
+
+            setUser({ ...user, addresses: updatedAddresses });
+            setIsAddingAddress(false);
+            setIsEditingAddress(false);
+            setEditingAddressId(null);
+            setNewAddress({ label: "Home", buildingName: "", street: "", city: "", state: "", zipCode: "", isDefault: false });
+            toast.success(isEditingAddress ? "Address updated!" : "Address added!");
+        } catch (error: any) {
+            toast.error("Failed to save address: " + error.message);
+        }
+    };
+
+    const handleDeleteAddress = async (addressId: string) => {
+        if (!user) return;
+        try {
+            const updatedAddresses = user.addresses?.filter(a => a.id !== addressId) || [];
+            // If we deleted the default address and have others, make the first one default
+            if (user.addresses?.find(a => a.id === addressId)?.isDefault && updatedAddresses.length > 0) {
+                updatedAddresses[0].isDefault = true;
+            }
+
+            const userRef = doc(db, "users", user.uid);
+            await setDoc(userRef, { addresses: updatedAddresses }, { merge: true });
+            setUser({ ...user, addresses: updatedAddresses });
+            toast.success("Address removed");
+        } catch (error: any) {
+            toast.error("Failed to remove address");
+        }
+    };
+
+    const handleSetDefaultAddress = async (addressId: string) => {
+        if (!user) return;
+        try {
+            const updatedAddresses = user.addresses?.map(addr => ({
+                ...addr,
+                isDefault: addr.id === addressId
+            })) || [];
+
+            const userRef = doc(db, "users", user.uid);
+            await setDoc(userRef, { addresses: updatedAddresses }, { merge: true });
+            setUser({ ...user, addresses: updatedAddresses });
+            toast.success("Default address updated");
+        } catch (error: any) {
+            toast.error("Failed to update default address");
+        }
+    };
+
+    const handleEditAddress = (addr: Address) => {
+        setNewAddress({
+            label: addr.label,
+            buildingName: addr.buildingName || "",
+            street: addr.street,
+            city: addr.city,
+            state: addr.state,
+            zipCode: addr.zipCode,
+            isDefault: addr.isDefault
+        });
+        setEditingAddressId(addr.id);
+        setIsEditingAddress(true);
+        setIsAddingAddress(true);
+    };
+
     const handleLogout = async () => {
         await signOut(auth);
         toast.success("Logged out");
@@ -345,6 +455,122 @@ export default function ProfilePage() {
                                 className="w-full py-4 rounded-xl bg-primary text-white font-black hover:opacity-90 transition-all shadow-lg shadow-primary/20"
                             >
                                 Save Card
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Add/Edit Address Modal */}
+            {isAddingAddress && (
+                <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-card w-full max-w-lg rounded-3xl p-8 shadow-2xl space-y-6">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-2xl font-bold">{isEditingAddress ? "Edit Address" : "Add New Address"}</h2>
+                            <button
+                                onClick={() => {
+                                    setIsAddingAddress(false);
+                                    setIsEditingAddress(false);
+                                    setEditingAddressId(null);
+                                }}
+                                className="p-2 hover:bg-muted rounded-full transition-colors"
+                            >
+                                <X className="h-6 w-6" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSaveAddress} className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2 col-span-2">
+                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Address Type</label>
+                                    <div className="flex gap-4">
+                                        {["Home", "Work"].map((type) => (
+                                            <button
+                                                key={type}
+                                                type="button"
+                                                onClick={() => setNewAddress({ ...newAddress, label: type })}
+                                                className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all font-bold ${newAddress.label === type
+                                                    ? "border-primary bg-primary/5 text-primary"
+                                                    : "border-muted hover:border-primary/30 text-muted-foreground"
+                                                    }`}
+                                            >
+                                                {newAddress.label === type && <CheckCircle2 className="h-4 w-4" />}
+                                                {type}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="space-y-2 col-span-2">
+                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Home / Building Name</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Flat 101, Galaxy Apartments"
+                                        value={newAddress.buildingName}
+                                        onChange={(e) => setNewAddress({ ...newAddress, buildingName: e.target.value })}
+                                        className="w-full px-4 py-3 rounded-xl border bg-muted/50 focus:ring-2 focus:ring-primary outline-none"
+                                        required
+                                    />
+                                </div>
+                                <div className="space-y-2 col-span-2">
+                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Street Address</label>
+                                    <input
+                                        type="text"
+                                        placeholder="123 Street Name"
+                                        value={newAddress.street}
+                                        onChange={(e) => setNewAddress({ ...newAddress, street: e.target.value })}
+                                        className="w-full px-4 py-3 rounded-xl border bg-muted/50 focus:ring-2 focus:ring-primary outline-none"
+                                        required
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">City</label>
+                                    <input
+                                        type="text"
+                                        placeholder="City"
+                                        value={newAddress.city}
+                                        onChange={(e) => setNewAddress({ ...newAddress, city: e.target.value })}
+                                        className="w-full px-4 py-3 rounded-xl border bg-muted/50 focus:ring-2 focus:ring-primary outline-none"
+                                        required
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">State</label>
+                                    <input
+                                        type="text"
+                                        placeholder="State"
+                                        value={newAddress.state}
+                                        onChange={(e) => setNewAddress({ ...newAddress, state: e.target.value })}
+                                        className="w-full px-4 py-3 rounded-xl border bg-muted/50 focus:ring-2 focus:ring-primary outline-none"
+                                        required
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Zip Code</label>
+                                    <input
+                                        type="text"
+                                        placeholder="000000"
+                                        value={newAddress.zipCode}
+                                        onChange={(e) => setNewAddress({ ...newAddress, zipCode: e.target.value })}
+                                        className="w-full px-4 py-3 rounded-xl border bg-muted/50 focus:ring-2 focus:ring-primary outline-none"
+                                        required
+                                    />
+                                </div>
+                                <div className="flex items-center gap-3 mt-4 col-span-2">
+                                    <input
+                                        type="checkbox"
+                                        id="isDefault"
+                                        checked={newAddress.isDefault}
+                                        onChange={(e) => setNewAddress({ ...newAddress, isDefault: e.target.checked })}
+                                        className="h-5 w-5 rounded border-gray-300 text-primary focus:ring-primary"
+                                    />
+                                    <label htmlFor="isDefault" className="text-sm font-bold">Set as default address</label>
+                                </div>
+                            </div>
+                            <button
+                                type="submit"
+                                className="w-full py-4 rounded-xl bg-primary text-white font-black hover:opacity-90 transition-all shadow-lg shadow-primary/20"
+                            >
+                                {isEditingAddress ? "Update Address" : "Save Address"}
                             </button>
                         </form>
                     </div>
@@ -555,7 +781,13 @@ export default function ProfilePage() {
                         <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
                             <div className="flex items-center justify-between">
                                 <h2 className="text-2xl font-bold">Shipping Addresses</h2>
-                                <button className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-xl font-bold shadow-lg shadow-primary/20">
+                                <button
+                                    onClick={() => {
+                                        setNewAddress({ label: "Home", buildingName: "", street: "", city: "", state: "", zipCode: "", isDefault: false });
+                                        setIsAddingAddress(true);
+                                    }}
+                                    className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-xl font-bold shadow-lg shadow-primary/20"
+                                >
                                     <Plus className="h-4 w-4" /> Add Address
                                 </button>
                             </div>
@@ -569,16 +801,32 @@ export default function ProfilePage() {
                                                 {addr.isDefault && <span className="text-[10px] font-black bg-primary text-primary-foreground px-2 py-0.5 rounded-full uppercase">Default</span>}
                                             </div>
                                             <div className="flex gap-1">
-                                                <button className="p-2 hover:bg-muted rounded-lg"><Edit2 className="h-4 w-4" /></button>
-                                                <button className="p-2 hover:bg-destructive/10 text-destructive rounded-lg"><Trash2 className="h-4 w-4" /></button>
+                                                <button
+                                                    onClick={() => handleEditAddress(addr)}
+                                                    className="p-2 hover:bg-muted rounded-lg"
+                                                >
+                                                    <Edit2 className="h-4 w-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteAddress(addr.id)}
+                                                    className="p-2 hover:bg-destructive/10 text-destructive rounded-lg"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
                                             </div>
                                         </div>
                                         <div className="space-y-1 text-muted-foreground">
+                                            {addr.buildingName && <p className="font-bold text-foreground">{addr.buildingName}</p>}
                                             <p>{addr.street}</p>
                                             <p>{addr.city}, {addr.state} - {addr.zipCode}</p>
                                         </div>
                                         {!addr.isDefault && (
-                                            <button className="mt-4 text-xs font-bold text-primary hover:underline">Set as Default</button>
+                                            <button
+                                                onClick={() => handleSetDefaultAddress(addr.id)}
+                                                className="mt-4 text-xs font-bold text-primary hover:underline"
+                                            >
+                                                Set as Default
+                                            </button>
                                         )}
                                     </div>
                                 )) : (
