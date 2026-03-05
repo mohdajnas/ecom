@@ -6,19 +6,27 @@ import { db } from "@/lib/firebase/config";
 import Link from "next/link";
 import { Package, ArrowRight, Smartphone, Laptop, Watch, Shirt, Home as HomeIcon, Footprints, Headphones, Camera, Star, MoreHorizontal } from "lucide-react";
 
-const getCategoryIcon = (name: string) => {
-    if (!name) return MoreHorizontal;
+const getCategoryDisplay = (name: string) => {
+    if (!name) return { type: 'icon', value: MoreHorizontal };
     const n = name.toLowerCase();
-    if (n.includes("phone") || n.includes("mobile")) return Smartphone;
-    if (n.includes("laptop") || n.includes("computer") || n.includes("electronics")) return Laptop;
-    if (n.includes("watch") || n.includes("accessory")) return Watch;
-    if (n.includes("clothing") || n.includes("shirt") || n.includes("fashion") || n.includes("apparel")) return Shirt;
-    if (n.includes("home") || n.includes("furniture") || n.includes("decor")) return HomeIcon;
-    if (n.includes("shoe") || n.includes("foot") || n.includes("sneaker")) return Footprints;
-    if (n.includes("audio") || n.includes("head") || n.includes("speaker") || n.includes("music")) return Headphones;
-    if (n.includes("camera") || n.includes("photo") || n.includes("video")) return Camera;
-    if (n.includes("beauty") || n.includes("care") || n.includes("cosmetic")) return Star;
-    return MoreHorizontal;
+
+    // Check for custom local images
+    if (n.includes("canvas")) return { type: 'image', value: "/categories/canvas.png" };
+    if (n.includes("denim")) return { type: 'image', value: "/categories/denim.png" };
+    if (n.includes("jute")) return { type: 'image', value: "/categories/jute.png" };
+    if (n.includes("printed")) return { type: 'image', value: "/categories/printed.png" };
+
+    // Standard Lucide icons
+    if (n.includes("phone") || n.includes("mobile")) return { type: 'icon', value: Smartphone };
+    if (n.includes("laptop") || n.includes("computer") || n.includes("electronics")) return { type: 'icon', value: Laptop };
+    if (n.includes("watch") || n.includes("accessory")) return { type: 'icon', value: Watch };
+    if (n.includes("clothing") || n.includes("shirt") || n.includes("fashion") || n.includes("apparel")) return { type: 'icon', value: Shirt };
+    if (n.includes("home") || n.includes("furniture") || n.includes("decor")) return { type: 'icon', value: HomeIcon };
+    if (n.includes("shoe") || n.includes("foot") || n.includes("sneaker")) return { type: 'icon', value: Footprints };
+    if (n.includes("audio") || n.includes("head") || n.includes("speaker") || n.includes("music")) return { type: 'icon', value: Headphones };
+    if (n.includes("camera") || n.includes("photo") || n.includes("video")) return { type: 'icon', value: Camera };
+    if (n.includes("beauty") || n.includes("care") || n.includes("cosmetic")) return { type: 'icon', value: Star };
+    return { type: 'icon', value: MoreHorizontal };
 };
 
 export default function CategoriesPage() {
@@ -88,7 +96,7 @@ export default function CategoriesPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {categories.length > 0 ? (
                         categories.map((cat, i) => {
-                            const Icon = getCategoryIcon(cat.name);
+                            const display = getCategoryDisplay(cat.name);
                             const colors = [
                                 "bg-orange-50 text-orange-600 border-orange-100",
                                 "bg-stone-50 text-stone-600 border-stone-100",
@@ -103,17 +111,18 @@ export default function CategoriesPage() {
                                 <Link
                                     href={`/shop?category=${encodeURIComponent(cat.name)}`}
                                     key={cat.id}
-                                    className={`group p-8 rounded-[2.5rem] border-2 transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 ${colorClass} bg-white`}
+                                    className="group flex flex-col items-center gap-6 transition-all duration-300 hover:-translate-y-1 text-center"
                                 >
-                                    <div className="flex items-start justify-between">
-                                        <div className="p-4 rounded-2xl bg-white shadow-sm transition-transform group-hover:scale-110">
-                                            <Icon className="h-8 w-8" />
-                                        </div>
-                                        <ArrowRight className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-all group-hover:translate-x-2" />
+                                    <div className="w-full aspect-square flex items-center justify-center p-12 rounded-[2.5rem] bg-muted/30 transition-all duration-300 group-hover:bg-primary/5 group-hover:scale-[1.02]">
+                                        {display.type === 'icon' ? (
+                                            <display.value className="h-16 w-16 text-muted-foreground group-hover:text-primary transition-colors" />
+                                        ) : (
+                                            <img src={display.value as string} alt={cat.name} className="h-20 w-20 object-contain" />
+                                        )}
                                     </div>
-                                    <div className="mt-8">
-                                        <h3 className="text-xl font-black text-foreground">{cat.name}</h3>
-                                        <p className="mt-1 text-xs text-muted-foreground font-medium uppercase tracking-widest">Collection</p>
+                                    <div className="space-y-1">
+                                        <h3 className="text-xl font-black text-foreground group-hover:text-primary transition-colors">{cat.name}</h3>
+                                        <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-[0.2em]">Explore Collection</p>
                                     </div>
                                 </Link>
                             );

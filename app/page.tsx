@@ -56,19 +56,27 @@ export default function Home() {
     fetchData();
   }, []);
 
-  const getCategoryIcon = (name: string) => {
-    if (!name) return MoreHorizontal;
+  const getCategoryDisplay = (name: string) => {
+    if (!name) return { type: 'icon', value: MoreHorizontal };
     const n = name.toLowerCase();
-    if (n.includes("phone") || n.includes("mobile")) return Smartphone;
-    if (n.includes("laptop") || n.includes("computer") || n.includes("electronics")) return Laptop;
-    if (n.includes("watch") || n.includes("accessory")) return Watch;
-    if (n.includes("clothing") || n.includes("shirt") || n.includes("fashion") || n.includes("apparel")) return Shirt;
-    if (n.includes("home") || n.includes("furniture") || n.includes("decor")) return HomeIcon;
-    if (n.includes("shoe") || n.includes("foot") || n.includes("sneaker")) return Footprints;
-    if (n.includes("audio") || n.includes("head") || n.includes("speaker") || n.includes("music")) return Headphones;
-    if (n.includes("camera") || n.includes("photo") || n.includes("video")) return Camera;
-    if (n.includes("beauty") || n.includes("care") || n.includes("cosmetic")) return Star;
-    return MoreHorizontal;
+
+    // Check for custom local images
+    if (n.includes("canvas")) return { type: 'image', value: "/categories/canvas.png" };
+    if (n.includes("denim")) return { type: 'image', value: "/categories/denim.png" };
+    if (n.includes("jute")) return { type: 'image', value: "/categories/jute.png" };
+    if (n.includes("printed")) return { type: 'image', value: "/categories/printed.png" };
+
+    // Standard Lucide icons
+    if (n.includes("phone") || n.includes("mobile")) return { type: 'icon', value: Smartphone };
+    if (n.includes("laptop") || n.includes("computer") || n.includes("electronics")) return { type: 'icon', value: Laptop };
+    if (n.includes("watch") || n.includes("accessory")) return { type: 'icon', value: Watch };
+    if (n.includes("clothing") || n.includes("shirt") || n.includes("fashion") || n.includes("apparel")) return { type: 'icon', value: Shirt };
+    if (n.includes("home") || n.includes("furniture") || n.includes("decor")) return { type: 'icon', value: HomeIcon };
+    if (n.includes("shoe") || n.includes("foot") || n.includes("sneaker")) return { type: 'icon', value: Footprints };
+    if (n.includes("audio") || n.includes("head") || n.includes("speaker") || n.includes("music")) return { type: 'icon', value: Headphones };
+    if (n.includes("camera") || n.includes("photo") || n.includes("video")) return { type: 'icon', value: Camera };
+    if (n.includes("beauty") || n.includes("care") || n.includes("cosmetic")) return { type: 'icon', value: Star };
+    return { type: 'icon', value: MoreHorizontal };
   };
 
   return (
@@ -132,7 +140,7 @@ export default function Home() {
             ))
           ) : categories.length > 0 ? (
             categories.slice(0, 6).map((cat, i) => {
-              const Icon = getCategoryIcon(cat);
+              const display = getCategoryDisplay(cat);
               const colors = [
                 "bg-stone-50 text-stone-600 hover:border-stone-200",
                 "bg-stone-50 text-stone-600 hover:border-stone-200",
@@ -147,12 +155,16 @@ export default function Home() {
                 <Link
                   key={i}
                   href={`/shop?category=${encodeURIComponent(cat)}`}
-                  className={`group flex flex-col items-center justify-center p-8 rounded-[2.5rem] border-2 border-transparent transition-all duration-300 hover:bg-white hover:shadow-2xl hover:-translate-y-2 ${colorClass}`}
+                  className="group flex flex-col items-center gap-4 transition-all duration-300 hover:-translate-y-1"
                 >
-                  <div className="p-5 rounded-2xl bg-white shadow-sm transition-transform duration-300 group-hover:scale-110">
-                    <Icon className="h-10 w-10" />
+                  <div className="p-6 rounded-[2rem] bg-muted/50 transition-all duration-300 group-hover:bg-primary/10 group-hover:scale-110">
+                    {display.type === 'icon' ? (
+                      <display.value className="h-12 w-12 text-foreground group-hover:text-primary transition-colors" />
+                    ) : (
+                      <img src={display.value as string} alt={cat} className="h-12 w-12 object-contain" />
+                    )}
                   </div>
-                  <span className="mt-4 font-black text-center text-foreground group-hover:text-primary transition-colors">{cat}</span>
+                  <span className="font-black text-center text-sm uppercase tracking-widest text-muted-foreground group-hover:text-primary transition-colors">{cat}</span>
                 </Link>
               );
             })
