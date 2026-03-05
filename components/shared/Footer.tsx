@@ -56,29 +56,10 @@ const features = [
 export const Footer = () => {
     return (
         <footer className="w-full bg-background border-t">
-            {/* Policy Bar */}
-            <div className="bg-muted/50 border-b">
-                <div className="container mx-auto px-4 py-8">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                        {features.map((feature, index) => (
-                            <div key={index} className="flex items-center gap-4 group">
-                                <div className="p-3 rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-300">
-                                    <feature.icon className="h-6 w-6" />
-                                </div>
-                                <div>
-                                    <h4 className="font-semibold text-sm">{feature.title}</h4>
-                                    <p className="text-xs text-muted-foreground">{feature.desc}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-
-            <div className="container mx-auto px-4 pt-16 pb-8">
+            <div className="container mx-auto px-4 pt-4 pb-2">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 lg:gap-8">
                     {/* Brand & Newsletter */}
-                    <div className="lg:col-span-2 space-y-8">
+                    <div className="lg:col-span-2 space-y-4">
                         <Link href="/" className="flex items-center">
                             <img src="/logo.png" alt="yabuku.in" className="h-10 w-auto object-contain" />
                         </Link>
@@ -86,8 +67,8 @@ export const Footer = () => {
                             Experience the best in premium e-commerce. Quality products curated for your modern lifestyle.
                         </p>
 
-                        <div className="pt-4">
-                            <h4 className="font-semibold mb-4 text-sm uppercase tracking-wider">Stay Updated</h4>
+                        <div className="pt-2">
+                            <h4 className="font-semibold mb-3 text-sm uppercase tracking-wider">Stay Updated</h4>
                             <form className="flex gap-2 max-w-sm" onSubmit={(e) => e.preventDefault()}>
                                 <div className="relative flex-1">
                                     <input
@@ -109,7 +90,7 @@ export const Footer = () => {
                             </p>
                         </div>
 
-                        <div className="flex gap-4 pt-4">
+                        <div className="flex gap-4 pt-2">
                             {socialLinks.map((social, index) => (
                                 <motion.a
                                     key={index}
@@ -128,8 +109,8 @@ export const Footer = () => {
 
                     {/* Quick Links */}
                     <div>
-                        <h4 className="font-bold mb-6 text-sm uppercase tracking-wider">Shop</h4>
-                        <ul className="space-y-4">
+                        <h4 className="font-bold mb-4 text-sm uppercase tracking-wider">Shop</h4>
+                        <ul className="space-y-2">
                             {footerLinks.shop.map((link) => (
                                 <li key={link.label}>
                                     <Link
@@ -144,8 +125,8 @@ export const Footer = () => {
                     </div>
 
                     <div>
-                        <h4 className="font-bold mb-6 text-sm uppercase tracking-wider">Support</h4>
-                        <ul className="space-y-4">
+                        <h4 className="font-bold mb-4 text-sm uppercase tracking-wider">Support</h4>
+                        <ul className="space-y-2">
                             {footerLinks.support.map((link) => (
                                 <li key={link.label}>
                                     <Link
@@ -161,8 +142,8 @@ export const Footer = () => {
 
                     {/* Contact Info */}
                     <div>
-                        <h4 className="font-bold mb-6 text-sm uppercase tracking-wider">Contact Us</h4>
-                        <ul className="space-y-4">
+                        <h4 className="font-bold mb-3 text-sm uppercase tracking-wider">Contact Us</h4>
+                        <ul className="space-y-1.5">
                             <li className="flex items-start gap-3">
                                 <MapPin className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                                 <span className="text-sm text-muted-foreground">
@@ -186,14 +167,7 @@ export const Footer = () => {
                 </div>
 
                 {/* Bottom Bar */}
-                <div className="mt-16 pt-8 border-t border-muted/50 flex flex-col md:flex-row justify-between items-center gap-6">
-                    <div className="flex flex-wrap justify-center md:justify-start gap-4 text-[10px] uppercase tracking-widest text-muted-foreground/50 font-bold">
-                        <span className="flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                            Service Status: Normal
-                        </span>
-                    </div>
-
+                <div className="mt-4 pt-2 border-t border-muted/50 flex flex-col md:flex-row justify-between items-center gap-4">
                     <div className="flex items-center gap-6">
                         <p className="text-xs text-muted-foreground">
                             &copy; {new Date().getFullYear()} <span className="font-semibold text-foreground">yabuku.in</span>. All rights reserved.
